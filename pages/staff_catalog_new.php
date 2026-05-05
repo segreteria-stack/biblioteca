@@ -2,797 +2,1189 @@
 declare(strict_types=1);
 
 /**
- * Inserimento nuovo record di catalogo - Area staff
+ * Inserimento nuovo record bibliografico — Area staff
  *
- * Funzioni:
- * - Mostra un form per inserire un nuovo titolo in catalogo
- * - Salva i dati minimi nella tabella `biblio`
- * - Genera automaticamente una copia in `biblio_copy` con barcode "0{bibid}"
- * - Salva l'ISBN in `biblio_field` (tag 20, $a)
- * - Salva Editore e Anno in `biblio_field` (tag 260, $b e $c)
- * - Salva Descrizione fisica / pagine in `biblio_field` (tag 300, $a)
- * - Salva Riassunto (520 $a) e Nota generale (500 $a) in `biblio_field`
- *
- * Dipendenze:
- * - DB::conn() in lib/DB.php
- * - h() in lib/helpers.php
- *
- * Tabelle usate:
- * - biblio
- * - biblio_copy
- * - biblio_field
- * - material_type_dm
- * - collection_dm
+ * Pagina unificata con quattro metodi in tab:
+ *   manuale  – form guidato con lookup ISBN
+ *   sbn      – ricerca live OPAC SBN + import
+ *   file     – import da file MARC21/ISO2709 o EndNote
+ *   marcxml  – import da file MARCXML
  */
 
-$pdo = DB::conn();
-
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
+if (session_status() === PHP_SESSION_NONE) session_start();
 $baseUrl = function_exists('base_url') ? base_url() : '';
 
-$staffUserId = isset($_SESSION['staff_user_id']) ? (int)$_SESSION['staff_user_id'] : 0;
-
-/**
- * Protezione accesso staff:
- * se non loggato come staff → login con redirect.
- */
-if ($staffUserId <= 0) {
-    $target = 'index.php?page=login&redirect=' . urlencode('staff_catalog_new');
-    header('Location: ' . $target);
+if (empty($_SESSION['staff_user_id'])) {
+    header('Location: ' . $baseUrl . '/index.php?page=login&redirect=staff_catalog_new');
     exit;
 }
+$staffUserId = (int)$_SESSION['staff_user_id'];
 
-// -----------------------------------------------------------------------------
-// Caricamento liste di dominio (materiali e collezioni)
-// -----------------------------------------------------------------------------
+/** @var \PDO $pdo */
+/** @var array $cfg */
 
-$materiali   = [];
-$collezioni  = [];
-$errors      = [];
-$successMsg  = '';
-$newBibid    = null;
-$newBarcode  = null;
+// ============================================================
+// PARSING FUNCTIONS — file MARC21 ISO2709
+// ============================================================
 
-// Materiali
-try {
-    $stmt = $pdo->query('SELECT code, description FROM material_type_dm ORDER BY description');
-    $materiali = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-} catch (PDOException $e) {
-    $materiali = [];
+function ncn_marc_parse(string $raw): array
+{
+    $len = strlen($raw);
+    if ($len < 24) return ['leader' => '', 'fields' => []];
+    $leader  = substr($raw, 0, 24);
+    $base    = (int) substr($leader, 12, 5);
+    if ($base <= 0 || $base >= $len) return ['leader' => $leader, 'fields' => []];
+    $dir     = substr($raw, 24, $base - 25);
+    $fields  = [];
+    for ($p = 0; $p + 11 < strlen($dir); $p += 12) {
+        $tag  = substr($dir, $p, 3);
+        $flen = (int) substr($dir, $p + 3, 4);
+        $off  = (int) substr($dir, $p + 7, 5);
+        if ($flen <= 0 || ($base + $off + $flen) > $len + 1) continue;
+        $fdata = substr($raw, $base + $off, $flen - 1);
+        if ($tag < '010') {
+            $fields[] = ['tag' => $tag, 'ctrl' => true, 'raw' => $fdata];
+        } else {
+            $subs = [];
+            foreach (explode("\x1F", substr($fdata, 2)) as $part) {
+                if ($part !== '') $subs[] = ['code' => $part[0], 'val' => substr($part, 1)];
+            }
+            $fields[] = ['tag' => $tag, 'ctrl' => false,
+                         'ind1' => $fdata[0] ?? ' ', 'ind2' => $fdata[1] ?? ' ',
+                         'subfields' => $subs];
+        }
+    }
+    return ['leader' => $leader, 'fields' => $fields];
 }
 
-// Collezioni
-try {
-    $stmt = $pdo->query('SELECT code, description FROM collection_dm ORDER BY description');
-    $collezioni = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-} catch (PDOException $e) {
-    $collezioni = [];
+function ncn_marc_subs(array $marc, string $tag, array $codes): string
+{
+    $out = [];
+    foreach ($marc['fields'] as $f) {
+        if (($f['tag'] ?? '') !== $tag || !empty($f['ctrl'])) continue;
+        foreach ($f['subfields'] as $sf) {
+            if (in_array($sf['code'], $codes, true)) {
+                $v = trim(preg_replace('/[\x00-\x1F\x7F]/u', ' ', $sf['val']));
+                if ($v !== '') $out[] = $v;
+            }
+        }
+    }
+    return implode(' ', $out);
 }
 
-// -----------------------------------------------------------------------------
-// Valori di default / binding form
-// -----------------------------------------------------------------------------
-
-$data = [
-    'title'            => '',
-    'title_remainder'  => '',
-    'author'           => '',
-    'responsibility'   => '',
-    'material_cd'      => '',
-    'collection_cd'    => '',
-    'call_nmbr1'       => '',
-    'call_nmbr2'       => '',
-    'call_nmbr3'       => '',
-    'topic1'           => '',
-    'topic2'           => '',
-    'topic3'           => '',
-    'topic4'           => '',
-    'topic5'           => '',
-    'isbn'             => '',
-    'publisher'        => '',
-    'pub_year'         => '',
-    'pages'            => '', // per MARC 300 $a
-    'summary'          => '',
-    'notes'            => '',
-];
-
-// -----------------------------------------------------------------------------
-// Gestione POST (salvataggio nuovo record)
-// -----------------------------------------------------------------------------
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Raccolta campi
-    $data['title']           = trim((string)($_POST['title'] ?? ''));
-    $data['title_remainder'] = trim((string)($_POST['title_remainder'] ?? ''));
-    $data['author']          = trim((string)($_POST['author'] ?? ''));
-    $data['responsibility']  = trim((string)($_POST['responsibility'] ?? ''));
-    $data['material_cd']     = trim((string)($_POST['material_cd'] ?? ''));
-    $data['collection_cd']   = trim((string)($_POST['collection_cd'] ?? ''));
-    $data['call_nmbr1']      = trim((string)($_POST['call_nmbr1'] ?? ''));
-    $data['call_nmbr2']      = trim((string)($_POST['call_nmbr2'] ?? ''));
-    $data['call_nmbr3']      = trim((string)($_POST['call_nmbr3'] ?? ''));
-    $data['topic1']          = trim((string)($_POST['topic1'] ?? ''));
-    $data['topic2']          = trim((string)($_POST['topic2'] ?? ''));
-    $data['topic3']          = trim((string)($_POST['topic3'] ?? ''));
-    $data['topic4']          = trim((string)($_POST['topic4'] ?? ''));
-    $data['topic5']          = trim((string)($_POST['topic5'] ?? ''));
-    $data['isbn']            = trim((string)($_POST['isbn'] ?? ''));
-    $data['publisher']       = trim((string)($_POST['publisher'] ?? ''));
-    $data['pub_year']        = trim((string)($_POST['pub_year'] ?? ''));
-    $data['pages']           = trim((string)($_POST['pages'] ?? ''));
-    $data['summary']         = trim((string)($_POST['summary'] ?? ''));
-    $data['notes']           = trim((string)($_POST['notes'] ?? ''));
-
-    // Validazione minima
-    if ($data['title'] === '') {
-        $errors[] = 'Il campo <strong>Titolo</strong> è obbligatorio.';
+function ncn_marc_text(array $marc): string
+{
+    $lines = [];
+    foreach ($marc['fields'] as $f) {
+        if (!empty($f['ctrl'])) {
+            $lines[] = $f['tag'] . ' ' . trim(preg_replace('/[\x00-\x1F\x7F]/u', ' ', $f['raw']));
+        } else {
+            $parts = [];
+            foreach ($f['subfields'] as $sf) {
+                $v = trim(preg_replace('/[\x00-\x1F\x7F]/u', ' ', $sf['val']));
+                if ($v !== '') $parts[] = '$' . $sf['code'] . ' ' . $v;
+            }
+            $lines[] = sprintf('%s %s%s %s', $f['tag'], $f['ind1'], $f['ind2'], implode(' ', $parts));
+        }
     }
-    if ($data['material_cd'] === '') {
-        $errors[] = 'Seleziona un <strong>Tipo di materiale</strong>.';
+    return implode("\n", $lines);
+}
+
+// ============================================================
+// PARSING FUNCTIONS — file EndNote
+// ============================================================
+
+function ncn_endnote_parse(string $raw): array
+{
+    $out = [];
+    foreach (preg_split("/\r\n|\r|\n/", $raw) as $line) {
+        if ($line === '' || ($line[0] ?? '') !== '%' || strlen($line) < 3) continue;
+        $tag = $line[1];
+        $val = trim(substr($line, 3));
+        if ($val !== '') $out[$tag][] = $val;
     }
-    if ($data['collection_cd'] === '') {
-        $errors[] = 'Seleziona una <strong>Collocazione / sezione</strong>.';
+    return $out;
+}
+
+// ============================================================
+// NORMALIZE HELPERS — condivisi da file e MARCXML
+// ============================================================
+
+function ncn_split_title(string $raw): array
+{
+    $resp = '';
+    $part = $raw;
+    if (strpos($raw, ' / ') !== false) {
+        [$part, $resp] = explode(' / ', $raw, 2);
+    }
+    $rem = $title = trim($part);
+    if (strpos($part, ' : ') !== false) {
+        [$title, $rem] = explode(' : ', $part, 2);
+    } else {
+        $rem = '';
+    }
+    return ['title' => trim($title), 'remainder' => trim($rem), 'responsibility' => trim($resp)];
+}
+
+function ncn_main_author(string $raw): string
+{
+    return trim((string)(preg_split('/[;\r\n]+/', $raw)[0] ?? ''));
+}
+
+function ncn_year_from_pub(string $pub): string
+{
+    return preg_match('/\b(\d{4})\b/', $pub, $m) ? $m[1] : '';
+}
+
+function ncn_topics(string $raw): array
+{
+    $topics = [];
+    foreach (preg_split('/[\r\n;]+/', $raw) as $p) {
+        $p = trim((string)preg_replace('/\$\w/', '', $p));
+        if ($p !== '') $topics[] = $p;
+        if (count($topics) >= 5) break;
+    }
+    while (count($topics) < 5) $topics[] = '';
+    return $topics;
+}
+
+function ncn_add_field(PDO $pdo, int $bibid, int $tag, string $sub, string $val): void
+{
+    $val = trim($val);
+    if ($val === '') return;
+    $pdo->prepare('INSERT INTO biblio_field (bibid,tag,subfield_cd,field_data) VALUES (?,?,?,?)')
+        ->execute([$bibid, $tag, $sub, $val]);
+}
+
+// ============================================================
+// SHARED HELPERS — barcode automatico
+// ============================================================
+
+function ncn_next_barcode(PDO $pdo, int $bibid): array
+{
+    $stmt = $pdo->prepare('SELECT COALESCE(MAX(copyid),0)+1 FROM biblio_copy WHERE bibid=?');
+    $stmt->execute([$bibid]);
+    $copyid  = (int)$stmt->fetchColumn();
+    $barcode = str_pad((string)$bibid, 5, '0', STR_PAD_LEFT)
+             . str_pad((string)$copyid, 2, '0', STR_PAD_LEFT);
+    return [$copyid, $barcode];
+}
+
+// ============================================================
+// STATE
+// ============================================================
+
+$activeTab = (string)($_GET['tab'] ?? 'manuale');
+$method    = (string)($_POST['method'] ?? '');
+
+// manuale
+$manualData   = ['title'=>'','title_remainder'=>'','author'=>'','responsibility'=>'',
+                 'material_cd'=>'','collection_cd'=>'','call_nmbr1'=>'','call_nmbr2'=>'',
+                 'call_nmbr3'=>'','topic1'=>'','topic2'=>'','topic3'=>'','topic4'=>'',
+                 'topic5'=>'','isbn'=>'','publisher'=>'','pub_year'=>'','pages'=>'',
+                 'summary'=>'','notes'=>''];
+$manualErrors  = [];
+$manualSuccess = null;
+$manualBibid   = null;
+$manualBarcode = null;
+
+// file wizard
+$fileStep      = 0;   // 0=upload, 2=review, 3=done
+$fileExtracted = [];
+$filePreview   = '';
+$fileKind      = '';
+$fileErrors    = [];
+$fileSuccess   = null;
+$fileNewBibid  = null;
+
+// marcxml
+$marcErrors  = [];
+$marcSuccess = null;
+$marcCount   = 0;
+
+// ============================================================
+// POST HANDLER — manuale
+// ============================================================
+
+if ($method === 'manual') {
+    $activeTab = 'manuale';
+    foreach (array_keys($manualData) as $k) {
+        $manualData[$k] = trim((string)($_POST[$k] ?? ''));
     }
 
-    if ($errors === []) {
-        $now = date('Y-m-d H:i:s');
+    if ($manualData['title'] === '')        $manualErrors[] = 'Il <strong>Titolo</strong> è obbligatorio.';
+    if ($manualData['material_cd'] === '')  $manualErrors[] = 'Seleziona un <strong>Tipo di materiale</strong>.';
+    if ($manualData['collection_cd'] === '') $manualErrors[] = 'Seleziona una <strong>Sezione / collocazione</strong>.';
 
+    if ($manualErrors === []) {
         try {
-            // Iniziamo una transazione per inserire in biblio + biblio_copy + biblio_field
             $pdo->beginTransaction();
 
-            // ---------------------------------------------------------
-            // INSERT in biblio
-            // ---------------------------------------------------------
-            $sql = '
-                INSERT INTO biblio (
-                    create_dt,
-                    last_change_dt,
-                    last_change_userid,
-                    material_cd,
-                    collection_cd,
-                    call_nmbr1,
-                    call_nmbr2,
-                    call_nmbr3,
-                    title,
-                    title_remainder,
-                    responsibility_stmt,
-                    author,
-                    topic1,
-                    topic2,
-                    topic3,
-                    topic4,
-                    topic5
-                ) VALUES (
-                    :create_dt,
-                    :last_change_dt,
-                    :last_change_userid,
-                    :material_cd,
-                    :collection_cd,
-                    :call_nmbr1,
-                    :call_nmbr2,
-                    :call_nmbr3,
-                    :title,
-                    :title_remainder,
-                    :responsibility_stmt,
-                    :author,
-                    :topic1,
-                    :topic2,
-                    :topic3,
-                    :topic4,
-                    :topic5
-                )
-            ';
+            $stmt = $pdo->prepare('
+                INSERT INTO biblio
+                    (create_dt,last_change_dt,last_change_userid,material_cd,collection_cd,
+                     call_nmbr1,call_nmbr2,call_nmbr3,title,title_remainder,
+                     responsibility_stmt,author,topic1,topic2,topic3,topic4,topic5)
+                VALUES (NOW(),NOW(),:u,:mat,:col,:c1,:c2,:c3,:ti,:tr,:rs,:au,:t1,:t2,:t3,:t4,:t5)
+            ');
+            $stmt->execute([
+                ':u'=>$staffUserId, ':mat'=>$manualData['material_cd'],
+                ':col'=>$manualData['collection_cd'],
+                ':c1'=>$manualData['call_nmbr1'], ':c2'=>$manualData['call_nmbr2'],
+                ':c3'=>$manualData['call_nmbr3'], ':ti'=>$manualData['title'],
+                ':tr'=>$manualData['title_remainder'], ':rs'=>$manualData['responsibility'],
+                ':au'=>$manualData['author'],
+                ':t1'=>$manualData['topic1'], ':t2'=>$manualData['topic2'],
+                ':t3'=>$manualData['topic3'], ':t4'=>$manualData['topic4'],
+                ':t5'=>$manualData['topic5'],
+            ]);
+            $manualBibid = (int)$pdo->lastInsertId();
 
-            $stmt = $pdo->prepare($sql);
-            $stmt->bindValue(':create_dt', $now, PDO::PARAM_STR);
-            $stmt->bindValue(':last_change_dt', $now, PDO::PARAM_STR);
-            $stmt->bindValue(':last_change_userid', $staffUserId, PDO::PARAM_INT);
+            [$copyid, $barcode] = ncn_next_barcode($pdo, $manualBibid);
+            $pdo->prepare('INSERT INTO biblio_copy
+                (bibid,copyid,create_dt,barcode_nmbr,status_cd,status_begin_dt,renewal_count)
+                VALUES (?,?,NOW(),?,\'in\',NOW(),0)')
+                ->execute([$manualBibid, $copyid, $barcode]);
+            $manualBarcode = $barcode;
 
-            $stmt->bindValue(':material_cd',   $data['material_cd'], PDO::PARAM_STR);
-            $stmt->bindValue(':collection_cd', $data['collection_cd'], PDO::PARAM_STR);
-            $stmt->bindValue(':call_nmbr1',    $data['call_nmbr1'], PDO::PARAM_STR);
-            $stmt->bindValue(':call_nmbr2',    $data['call_nmbr2'], PDO::PARAM_STR);
-            $stmt->bindValue(':call_nmbr3',    $data['call_nmbr3'], PDO::PARAM_STR);
-
-            $stmt->bindValue(':title',               $data['title'], PDO::PARAM_STR);
-            $stmt->bindValue(':title_remainder',     $data['title_remainder'], PDO::PARAM_STR);
-            $stmt->bindValue(':responsibility_stmt', $data['responsibility'], PDO::PARAM_STR);
-            $stmt->bindValue(':author',              $data['author'], PDO::PARAM_STR);
-
-            $stmt->bindValue(':topic1', $data['topic1'], PDO::PARAM_STR);
-            $stmt->bindValue(':topic2', $data['topic2'], PDO::PARAM_STR);
-            $stmt->bindValue(':topic3', $data['topic3'], PDO::PARAM_STR);
-            $stmt->bindValue(':topic4', $data['topic4'], PDO::PARAM_STR);
-            $stmt->bindValue(':topic5', $data['topic5'], PDO::PARAM_STR);
-
-            $stmt->execute();
-
-            $newBibid = (int)$pdo->lastInsertId();
-
-           // ---------------------------------------------------------
-            // INSERT automatico PRIMA copia in biblio_copy
-            // barcode = bibid (5 cifre) + copy progressivo (2 cifre)
-            // ---------------------------------------------------------
-            if ($newBibid > 0) {
-                try {
-                    $nowDt = date('Y-m-d H:i:s');
-            
-                    // 1️⃣ calcoliamo il prossimo copyid PER QUESTO bibid
-                    $stmtMax = $pdo->prepare('
-                        SELECT COALESCE(MAX(copyid), 0) + 1
-                        FROM biblio_copy
-                        WHERE bibid = :bibid
-                    ');
-                    $stmtMax->execute([':bibid' => $newBibid]);
-                    $nextCopyId = (int)$stmtMax->fetchColumn();
-            
-                    // 2️⃣ generiamo barcode univoco (coerente con storico)
-                    // es: bibid 7116 + copy 1 → 0711601
-                    $newBarcode =
-                        str_pad((string)$newBibid, 5, '0', STR_PAD_LEFT) .
-                        str_pad((string)$nextCopyId, 2, '0', STR_PAD_LEFT);
-            
-                    // 3️⃣ INSERT completo (tutti i NOT NULL coperti)
-                    $stmtCopy = $pdo->prepare('
-                        INSERT INTO biblio_copy (
-                            bibid,
-                            copyid,
-                            create_dt,
-                            barcode_nmbr,
-                            status_cd,
-                            status_begin_dt,
-                            renewal_count
-                        ) VALUES (
-                            :bibid,
-                            :copyid,
-                            :create_dt,
-                            :barcode,
-                            :status_cd,
-                            :status_begin_dt,
-                            0
-                        )
-                    ');
-                    $stmtCopy->execute([
-                        ':bibid'           => $newBibid,
-                        ':copyid'          => $nextCopyId,
-                        ':create_dt'       => $nowDt,
-                        ':barcode'         => $newBarcode,
-                        ':status_cd'       => 'in',
-                        ':status_begin_dt' => $nowDt,
-                    ]);
-            
-                } catch (PDOException $e) {
-                    // qui ora SE FALLISCE è un vero errore
-                    $errors[] = 'Errore creazione copia automatica.';
-                    throw $e;
-                }
-            }
-
-            // ---------------------------------------------------------
-            // Campi MARC in biblio_field (complementari ai campi base)
-            // ---------------------------------------------------------
-            if ($newBibid > 0) {
-                // ISBN (20 $a)
-                if ($data['isbn'] !== '') {
-                    try {
-                        $sqlIsbn = '
-                            INSERT INTO biblio_field (
-                                bibid,
-                                tag,
-                                subfield_cd,
-                                field_data
-                            ) VALUES (
-                                :bibid,
-                                20,
-                                :subfield_cd,
-                                :field_data
-                            )
-                        ';
-                        $stmtIsbn = $pdo->prepare($sqlIsbn);
-                        $stmtIsbn->bindValue(':bibid', $newBibid, PDO::PARAM_INT);
-                        $stmtIsbn->bindValue(':subfield_cd', 'a', PDO::PARAM_STR);
-                        $stmtIsbn->bindValue(':field_data', $data['isbn'], PDO::PARAM_STR);
-                        $stmtIsbn->execute();
-                    } catch (PDOException $e) {
-                        // Ignoriamo: niente ISBN strutturato
-                    }
-                }
-
-                // Editore (260 $b)
-                if ($data['publisher'] !== '') {
-                    try {
-                        $sqlPub = '
-                            INSERT INTO biblio_field (
-                                bibid,
-                                tag,
-                                subfield_cd,
-                                field_data
-                            ) VALUES (
-                                :bibid,
-                                260,
-                                :subfield_cd,
-                                :field_data
-                            )
-                        ';
-                        $stmtPub = $pdo->prepare($sqlPub);
-                        $stmtPub->bindValue(':bibid', $newBibid, PDO::PARAM_INT);
-                        $stmtPub->bindValue(':subfield_cd', 'b', PDO::PARAM_STR);
-                        $stmtPub->bindValue(':field_data', $data['publisher'], PDO::PARAM_STR);
-                        $stmtPub->execute();
-                    } catch (PDOException $e) {
-                        // Ignoriamo: niente editore strutturato
-                    }
-                }
-
-                // Anno (260 $c)
-                if ($data['pub_year'] !== '') {
-                    try {
-                        $sqlYear = '
-                            INSERT INTO biblio_field (
-                                bibid,
-                                tag,
-                                subfield_cd,
-                                field_data
-                            ) VALUES (
-                                :bibid,
-                                260,
-                                :subfield_cd,
-                                :field_data
-                            )
-                        ';
-                        $stmtYear = $pdo->prepare($sqlYear);
-                        $stmtYear->bindValue(':bibid', $newBibid, PDO::PARAM_INT);
-                        $stmtYear->bindValue(':subfield_cd', 'c', PDO::PARAM_STR);
-                        $stmtYear->bindValue(':field_data', $data['pub_year'], PDO::PARAM_STR);
-                        $stmtYear->execute();
-                    } catch (PDOException $e) {
-                        // Ignoriamo: niente anno strutturato
-                    }
-                }
-
-                // Descrizione fisica / pagine (300 $a)
-                if ($data['pages'] !== '') {
-                    try {
-                        $sqlPages = '
-                            INSERT INTO biblio_field (
-                                bibid,
-                                tag,
-                                subfield_cd,
-                                field_data
-                            ) VALUES (
-                                :bibid,
-                                300,
-                                :subfield_cd,
-                                :field_data
-                            )
-                        ';
-                        $stmtPages = $pdo->prepare($sqlPages);
-                        $stmtPages->bindValue(':bibid', $newBibid, PDO::PARAM_INT);
-                        $stmtPages->bindValue(':subfield_cd', 'a', PDO::PARAM_STR);
-                        $stmtPages->bindValue(':field_data', $data['pages'], PDO::PARAM_STR);
-                        $stmtPages->execute();
-                    } catch (PDOException $e) {
-                        // Ignoriamo: niente descrizione fisica strutturata
-                    }
-                }
-
-                // Riassunto (520 $a)
-                if ($data['summary'] !== '') {
-                    try {
-                        $sqlSummary = '
-                            INSERT INTO biblio_field (
-                                bibid,
-                                tag,
-                                subfield_cd,
-                                field_data
-                            ) VALUES (
-                                :bibid,
-                                520,
-                                :subfield_cd,
-                                :field_data
-                            )
-                        ';
-                        $stmtSummary = $pdo->prepare($sqlSummary);
-                        $stmtSummary->bindValue(':bibid', $newBibid, PDO::PARAM_INT);
-                        $stmtSummary->bindValue(':subfield_cd', 'a', PDO::PARAM_STR);
-                        $stmtSummary->bindValue(':field_data', $data['summary'], PDO::PARAM_STR);
-                        $stmtSummary->execute();
-                    } catch (PDOException $e) {
-                        // Ignoriamo: niente 520
-                    }
-                }
-
-                // Nota generale (500 $a)
-                if ($data['notes'] !== '') {
-                    try {
-                        $sqlNotes = '
-                            INSERT INTO biblio_field (
-                                bibid,
-                                tag,
-                                subfield_cd,
-                                field_data
-                            ) VALUES (
-                                :bibid,
-                                500,
-                                :subfield_cd,
-                                :field_data
-                            )
-                        ';
-                        $stmtNotes = $pdo->prepare($sqlNotes);
-                        $stmtNotes->bindValue(':bibid', $newBibid, PDO::PARAM_INT);
-                        $stmtNotes->bindValue(':subfield_cd', 'a', PDO::PARAM_STR);
-                        $stmtNotes->bindValue(':field_data', $data['notes'], PDO::PARAM_STR);
-                        $stmtNotes->execute();
-                    } catch (PDOException $e) {
-                        // Ignoriamo: niente 500
-                    }
-                }
+            foreach ([
+                [20,'a',$manualData['isbn']],
+                [260,'b',$manualData['publisher']],
+                [260,'c',$manualData['pub_year']],
+                [300,'a',$manualData['pages']],
+                [520,'a',$manualData['summary']],
+                [500,'a',$manualData['notes']],
+            ] as [$tag,$sub,$val]) {
+                ncn_add_field($pdo, $manualBibid, $tag, $sub, $val);
             }
 
             $pdo->commit();
+            $manualSuccess = true;
+            foreach (array_keys($manualData) as $k) $manualData[$k] = '';
 
-            // Messaggio di successo "base"
-            if ($newBibid !== null) {
-                if ($newBarcode !== null) {
-                    $successMsg = 'Record creato correttamente.';
-                } else {
-                    $successMsg = 'Record creato correttamente (attenzione: la copia automatica non è stata creata).';
-                }
-            } else {
-                $successMsg = 'Record creato correttamente.';
-            }
-
-            // Svuoto i campi per un nuovo inserimento
-            foreach ($data as $k => $_) {
-                $data[$k] = '';
-            }
-
-        } catch (PDOException $e) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-            $errors[] = 'Si è verificato un errore durante il salvataggio del record. Riprova.';
+        } catch (\PDOException $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $manualErrors[] = 'Errore durante il salvataggio. Riprova.';
         }
     }
 }
 
+// ============================================================
+// POST HANDLER — file_upload (step 1 → step 2)
+// ============================================================
+
+if ($method === 'file_upload') {
+    $activeTab = 'file';
+
+    if (!isset($_FILES['importfile']) || (int)$_FILES['importfile']['error'] !== UPLOAD_ERR_OK) {
+        $fileErrors[] = 'Caricamento file non riuscito.';
+    } else {
+        $origName = (string)($_FILES['importfile']['name'] ?? '');
+        $ext      = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
+        $raw      = (string)@file_get_contents((string)$_FILES['importfile']['tmp_name']);
+
+        if ($raw === '') {
+            $fileErrors[] = 'Il file è vuoto.';
+        } elseif (in_array($ext, ['mrc','iso','marc'], true)) {
+            $fileKind = 'marc';
+            $marc = ncn_marc_parse($raw);
+            $filePreview = ncn_marc_text($marc);
+            $isbn    = ncn_marc_subs($marc, '020', ['a','z']);
+            $authors = trim(ncn_marc_subs($marc,'100',['a']) . ' ' . ncn_marc_subs($marc,'700',['a']));
+            $title   = ncn_marc_subs($marc, '245', ['a','b','c']);
+            $pub     = ncn_marc_subs($marc, '260', ['a','b','c']) ?: ncn_marc_subs($marc, '264', ['a','b','c']);
+            $phys    = ncn_marc_subs($marc, '300', ['a','b','c']);
+            $abstr   = ncn_marc_subs($marc, '520', ['a','b']);
+            $subj    = ncn_marc_subs($marc, '650', ['a','x','y','z']);
+            $fileExtracted = compact('isbn','authors','title','pub','phys','abstr','subj');
+            $fileStep = 2;
+        } elseif (in_array($ext, ['txt','enw'], true)) {
+            $fileKind = 'endnote';
+            $p = ncn_endnote_parse($raw);
+            $authors = implode('; ', $p['A'] ?? []);
+            $title   = ($p['T'][0] ?? '');
+            $place   = ($p['C'][0] ?? '');
+            $publ    = ($p['I'][0] ?? '');
+            $yr      = ($p['D'][0] ?? '');
+            $pub     = implode(' : ', array_filter([$place,$publ,$yr]));
+            $series  = ($p['B'][0] ?? '');
+            $ed      = ($p['7'][0] ?? '');
+            $phys    = trim(($series ? 'Serie: '.$series : '') . ($ed ? ' Edizione: '.$ed : ''));
+            $isbn = $abstr = $subj = '';
+            $filePreview = trim($raw);
+            $fileExtracted = compact('isbn','authors','title','pub','phys','abstr','subj');
+            $fileStep = 2;
+        } else {
+            $fileErrors[] = 'Formato non supportato. Usa .mrc/.iso/.marc (MARC21) o .txt/.enw (EndNote).';
+        }
+    }
+}
+
+// ============================================================
+// POST HANDLER — file_import (step 2 → step 3)
+// ============================================================
+
+if ($method === 'file_import') {
+    $activeTab = 'file';
+
+    $titleRaw = trim((string)($_POST['title'] ?? ''));
+    $authors  = trim((string)($_POST['authors'] ?? ''));
+    $pub      = trim((string)($_POST['pub'] ?? ''));
+    $phys     = trim((string)($_POST['phys'] ?? ''));
+    $abstr    = trim((string)($_POST['abstr'] ?? ''));
+    $subj     = trim((string)($_POST['subj'] ?? ''));
+    $isbn     = trim((string)($_POST['isbn'] ?? ''));
+
+    if ($titleRaw === '') {
+        $fileErrors[] = 'Il Titolo è obbligatorio.';
+        $fileStep = 2;
+        $fileKind = (string)($_POST['filekind'] ?? '');
+        $filePreview = (string)($_POST['filepreview'] ?? '');
+        $fileExtracted = compact('isbn','authors','title','pub','phys','abstr','subj');
+        $title = $titleRaw;
+    } else {
+        $tp     = ncn_split_title($titleRaw);
+        $author = ncn_main_author($authors);
+        $year   = ncn_year_from_pub($pub);
+        $topics = ncn_topics($subj);
+
+        // default material/collection dal primo record esistente
+        $defMat = $defCol = '';
+        try {
+            $row = $pdo->query('SELECT material_cd,collection_cd FROM biblio ORDER BY bibid LIMIT 1')->fetch(PDO::FETCH_ASSOC);
+            if ($row) { $defMat = (string)$row['material_cd']; $defCol = (string)$row['collection_cd']; }
+        } catch (\PDOException $e) {}
+        if ($defMat === '') $defMat = 'b';
+        if ($defCol === '') $defCol = 'GEN';
+
+        try {
+            $pdo->beginTransaction();
+
+            $stmt = $pdo->prepare('
+                INSERT INTO biblio
+                    (create_dt,last_change_dt,last_change_userid,material_cd,collection_cd,
+                     call_nmbr1,call_nmbr2,call_nmbr3,title,title_remainder,
+                     responsibility_stmt,author,topic1,topic2,topic3,topic4,topic5,opac_flg)
+                VALUES (NOW(),NOW(),:u,:mat,:col,\'\',\'\',\'\',:ti,:tr,:rs,:au,:t1,:t2,:t3,:t4,:t5,\'Y\')
+            ');
+            $stmt->execute([
+                ':u'=>$staffUserId, ':mat'=>$defMat, ':col'=>$defCol,
+                ':ti'=>$tp['title'], ':tr'=>$tp['remainder'], ':rs'=>$tp['responsibility'],
+                ':au'=>$author,
+                ':t1'=>$topics[0], ':t2'=>$topics[1], ':t3'=>$topics[2],
+                ':t4'=>$topics[3], ':t5'=>$topics[4],
+            ]);
+            $fileNewBibid = (int)$pdo->lastInsertId();
+
+            foreach ([
+                [20,'a',$isbn],
+                [245,'a',$tp['title']], [245,'b',$tp['remainder']], [245,'c',$tp['responsibility']],
+                [300,'a',$phys],
+                [520,'a',$abstr],
+            ] as [$tag,$sub,$val]) {
+                ncn_add_field($pdo, $fileNewBibid, $tag, $sub, $val);
+            }
+
+            // pubblicazione
+            if ($pub !== '') {
+                $pparts = preg_split('/\s*:\s*/', $pub);
+                ncn_add_field($pdo, $fileNewBibid, 260, 'a', $pparts[0] ?? '');
+                ncn_add_field($pdo, $fileNewBibid, 260, 'b', $pparts[1] ?? '');
+                if ($year !== '') ncn_add_field($pdo, $fileNewBibid, 260, 'c', $year);
+            }
+
+            // soggetti 650
+            foreach (preg_split('/[\r\n;]+/', $subj) as $s) {
+                $s = trim((string)preg_replace('/\$\w/', '', $s));
+                if ($s !== '') ncn_add_field($pdo, $fileNewBibid, 650, 'a', $s);
+            }
+
+            $pdo->commit();
+            $fileStep    = 3;
+            $fileSuccess = true;
+
+        } catch (\PDOException $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $fileErrors[] = 'Errore DB durante l\'inserimento: ' . h($e->getMessage());
+            $fileStep = 2;
+            $fileKind = (string)($_POST['filekind'] ?? '');
+            $filePreview = (string)($_POST['filepreview'] ?? '');
+            $title = $titleRaw;
+            $fileExtracted = compact('isbn','authors','title','pub','phys','abstr','subj');
+        }
+    }
+}
+
+// ============================================================
+// POST HANDLER — marcxml
+// ============================================================
+
+if ($method === 'marcxml') {
+    $activeTab = 'marcxml';
+    $createCopy = isset($_POST['create_copy']);
+
+    if (!isset($_FILES['marcxml']) || (int)$_FILES['marcxml']['error'] !== UPLOAD_ERR_OK) {
+        $marcErrors[] = 'Caricamento file non riuscito.';
+    } else {
+        $xml = (string)@file_get_contents((string)$_FILES['marcxml']['tmp_name']);
+        if ($xml === '') {
+            $marcErrors[] = 'Il file è vuoto.';
+        } else {
+            try {
+                $sx = new \SimpleXMLElement($xml);
+                $records = $sx->getName() === 'collection'
+                    ? iterator_to_array($sx->record)
+                    : ($sx->getName() === 'record' ? [$sx] : []);
+
+                if ($records === []) throw new \Exception('Formato XML non riconosciuto (atteso &lt;collection&gt; o &lt;record&gt;).');
+
+                $insBib = $pdo->prepare('INSERT INTO biblio
+                    (title,title_remainder,author,topic1,topic2,topic3,topic4,topic5,opac_flg,create_dt,last_change_dt,last_change_userid)
+                    VALUES (?,?,?,?,?,?,?,?,\'Y\',NOW(),NOW(),?)');
+                $insF = $pdo->prepare('INSERT INTO biblio_field (bibid,tag,subfield_cd,field_data) VALUES (?,?,?,?)');
+                $insC = $pdo->prepare('INSERT INTO biblio_copy (bibid,copyid,barcode_nmbr,status_cd,create_dt,status_begin_dt,renewal_count) VALUES (?,?,?,\'in\',NOW(),NOW(),0)');
+
+                $pdo->beginTransaction();
+
+                foreach ($records as $rec) {
+                    $mxSubs = function(string $tag, string $code) use ($rec): ?string {
+                        foreach ($rec->datafield as $df) {
+                            if ((string)$df['tag'] === $tag) {
+                                foreach ($df->subfield as $sf) {
+                                    if ((string)$sf['code'] === $code) return trim((string)$sf);
+                                }
+                            }
+                        }
+                        return null;
+                    };
+                    $mxTopics = function() use ($rec): array {
+                        $t = [];
+                        foreach ($rec->datafield as $df) {
+                            if ((string)$df['tag'] === '650') {
+                                foreach ($df->subfield as $sf) {
+                                    if ((string)$sf['code'] === 'a') {
+                                        $v = trim((string)$sf);
+                                        if ($v !== '') $t[] = $v;
+                                        if (count($t) >= 5) return $t;
+                                    }
+                                }
+                            }
+                        }
+                        return $t;
+                    };
+
+                    $titleMain = $mxSubs('245','a') ?? '';
+                    $titleRem  = $mxSubs('245','b') ?? '';
+                    $author    = $mxSubs('100','a') ?? ($mxSubs('110','a') ?? ($mxSubs('111','a') ?? ''));
+                    $topics    = array_pad($mxTopics(), 5, null);
+                    $isbnRaw   = $mxSubs('020','a');
+                    $isbn      = $isbnRaw ? strtoupper(preg_replace('/[^0-9Xx]/','',$isbnRaw)) : null;
+
+                    $insBib->execute([$titleMain,$titleRem,$author,$topics[0],$topics[1],$topics[2],$topics[3],$topics[4],$staffUserId]);
+                    $bibid = (int)$pdo->lastInsertId();
+                    if ($isbn) $insF->execute([$bibid,20,'a',$isbn]);
+
+                    if ($createCopy) {
+                        [$copyid, $barcode] = ncn_next_barcode($pdo, $bibid);
+                        $insC->execute([$bibid, $copyid, $barcode]);
+                    }
+                    $marcCount++;
+                }
+                $pdo->commit();
+                $marcSuccess = true;
+
+            } catch (\Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                $marcErrors[] = 'Errore import: ' . h($e->getMessage());
+            }
+        }
+    }
+}
+
+// ============================================================
+// DOMAIN DATA
+// ============================================================
+
+$materiali = $collezioni = [];
+try { $materiali = $pdo->query('SELECT code,description FROM material_type_dm ORDER BY description')->fetchAll(\PDO::FETCH_ASSOC) ?: []; } catch (\PDOException $e) {}
+try { $collezioni = $pdo->query('SELECT code,description FROM collection_dm ORDER BY description')->fetchAll(\PDO::FETCH_ASSOC) ?: []; } catch (\PDOException $e) {}
+
+$sbnEnabled = !empty($cfg['sbn']['enabled']) && !empty($cfg['sbn']['consumer_key']) && !empty($cfg['sbn']['consumer_secret']);
+$gbApiKey   = $GLOBALS['cfg']['google_books']['api_key'] ?? '';
 ?>
+<style>
+/* ---- tabs ---- */
+.ncn-tabs { display:flex; gap:0; border-bottom:2px solid #e5e7eb; margin-bottom:1.5rem; flex-wrap:wrap; }
+.ncn-tab  { padding:.55rem 1.2rem; background:none; border:none; border-bottom:2px solid transparent;
+            margin-bottom:-2px; cursor:pointer; font-size:.92rem; font-weight:600; color:#6b7280;
+            transition:color .12s,border-color .12s; }
+.ncn-tab:hover  { color:#374151; }
+.ncn-tab.active { color:var(--color-primary,#b91c1c); border-bottom-color:var(--color-primary,#b91c1c); }
+.ncn-pane { display:none; }
+.ncn-pane.active { display:block; }
+
+/* ---- form sections ---- */
+.form-section { border:1px solid #e5e7eb; border-radius:8px; padding:1.25rem 1.4rem 1rem;
+                margin-bottom:1.25rem; background:#fff; }
+.form-section legend { padding:0 .5rem; font-weight:700; font-size:.88rem;
+                       letter-spacing:.06em; text-transform:uppercase; color:#6b7280; }
+.req { color:#b91c1c; }
+#isbn-lookup-status { font-size:.84rem; margin-top:.3rem; }
+#isbn-lookup-status.ok  { color:#15803d; }
+#isbn-lookup-status.err { color:#b91c1c; }
+
+/* ---- success / error boxes ---- */
+.ncn-ok  { border-left:4px solid #16a34a; background:#f0fdf4; padding:1rem 1.25rem;
+           border-radius:0 6px 6px 0; margin-bottom:1rem; }
+.ncn-err { border-left:4px solid #b91c1c; background:#fef2f2; padding:1rem 1.25rem;
+           border-radius:0 6px 6px 0; margin-bottom:1rem; }
+
+/* ---- file preview ---- */
+.ncn-marc-pre { background:#111827; color:#e5e7eb; padding:1rem; border-radius:6px;
+                overflow:auto; font-size:.78rem; max-height:240px; margin-top:.75rem; }
+
+/* ---- SBN (da staff_sbn_import.php) ---- */
+.sbn-import-form { background:#fafafa; border:1px solid #e0e0e0; border-radius:8px; padding:1.25rem; margin-bottom:1rem; }
+.sbn-import-row  { display:flex; gap:1rem; align-items:flex-end; flex-wrap:wrap; margin-bottom:1rem; }
+.sbn-import-row label  { display:block; font-size:.88rem; color:#333; margin-bottom:.3rem; font-weight:600; }
+.sbn-import-row input  { padding:.5rem .7rem; border:1px solid #ccc; border-radius:4px; font-size:.9rem; width:300px; }
+.sbn-import-row select { padding:.5rem .7rem; border:1px solid #ccc; border-radius:4px; font-size:.9rem; background:#fff; }
+.sbn-import-row button { padding:.55rem 1.2rem; border:none; border-radius:5px; cursor:pointer; font-size:.9rem; font-weight:600; background:#b00; color:#fff; }
+.sbn-import-row button:disabled { opacity:.5; cursor:not-allowed; }
+#sbn-results table { width:100%; border-collapse:collapse; font-size:.88rem; }
+#sbn-results th, #sbn-results td { text-align:left; padding:.45rem .65rem; border-bottom:1px solid #eee; vertical-align:top; }
+#sbn-results th { background:#f9f9f9; font-weight:600; }
+.sbn-btn-preview { background:#444; color:#fff; border:none; border-radius:4px; padding:.3rem .7rem; cursor:pointer; font-size:.82rem; }
+.sbn-import-ok { background:#e8f4e8; border:1px solid #4a9; border-radius:5px; padding:.75rem 1rem; margin:.5rem 0; color:#1a7a1a; }
+.sbn-import-err { background:#ffe8e8; border:1px solid #c00; border-radius:5px; padding:.75rem 1rem; margin:.5rem 0; color:#c00; }
+.sbn-import-warn { background:#fff3cd; border:1px solid #ffc107; border-radius:5px; padding:.75rem 1rem; margin:.5rem 0; color:#856404; }
+.sbn-modal-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+                     background:rgba(0,0,0,.5); z-index:1000; justify-content:center; align-items:center; }
+.sbn-modal-overlay.active { display:flex; }
+.sbn-modal { background:#fff; border-radius:8px; max-width:800px; width:95%; max-height:90vh;
+             overflow-y:auto; padding:1.5rem; box-shadow:0 4px 20px rgba(0,0,0,.2); }
+.sbn-modal-header { display:flex; justify-content:space-between; align-items:center;
+                    margin-bottom:1rem; border-bottom:1px solid #eee; padding-bottom:.5rem; }
+.sbn-modal-header h3 { margin:0; font-size:1.1rem; }
+.sbn-modal-close { background:none; border:none; font-size:1.5rem; cursor:pointer; color:#666; }
+.sbn-edit-grid { display:grid; grid-template-columns:130px 1fr; gap:.4rem 1rem; font-size:.88rem; align-items:start; }
+.sbn-edit-label { font-weight:600; color:#555; padding-top:.35rem; }
+.sbn-edit-field input, .sbn-edit-field textarea, .sbn-edit-field select {
+    width:100%; padding:.35rem .5rem; border:1px solid #ccc; border-radius:4px; font-size:.88rem; font-family:inherit; background:#fff; }
+.sbn-edit-field textarea { min-height:55px; resize:vertical; }
+.sbn-edit-field input:focus, .sbn-edit-field textarea:focus { border-color:#b00; outline:none; }
+.sbn-edit-readonly { background:#f5f5f5; padding:.35rem .5rem; border-radius:4px; color:#666; font-size:.85rem; }
+.sbn-edit-section { grid-column:1/-1; font-weight:700; color:#b00; margin-top:.8rem;
+                    padding-top:.5rem; border-top:1px solid #eee; }
+.sbn-modal-actions { margin-top:1.25rem; display:flex; gap:.7rem; justify-content:flex-end;
+                     padding-top:1rem; border-top:1px solid #eee; }
+.sbn-modal-actions button { padding:.5rem 1rem; border:none; border-radius:5px; cursor:pointer;
+                             font-size:.9rem; font-weight:600; }
+.sbn-modal-import { background:#1a7a1a; color:#fff; }
+.sbn-modal-cancel { background:#eee; color:#333; }
+.sbn-modal-import:disabled { opacity:.5; }
+.sbn-success-banner { background:#e8f4e8; border:2px solid #1a7a1a; border-radius:8px;
+                      padding:1.2rem; margin-bottom:1rem; text-align:center; }
+.sbn-success-banner h4 { margin:0 0 .5rem; color:#1a7a1a; }
+.sbn-success-banner a { display:inline-block; background:#1a7a1a; color:#fff;
+                         padding:.5rem 1.2rem; border-radius:5px; text-decoration:none; font-weight:600; }
+</style>
+
 <section class="page-section page-staff-catalog-new">
-    <h1>Nuovo record di catalogo</h1>
 
-    <p>
-        Compila i dati principali del titolo. Dopo il salvataggio verrà generata in automatico
-        una copia in magazzino con un codice univoco (barcode) basato sul bibid.
-    </p>
+    <nav style="font-size:.88rem;margin-bottom:1rem;">
+        <a href="<?= h($baseUrl) ?>/index.php?page=staff">Dashboard</a> › Inserisci record
+    </nav>
 
-    <?php if ($successMsg !== ''): ?>
-        <div class="generic-box" style="margin-top:0.75rem;">
-            <p><?= $successMsg ?></p>
+    <h1 style="margin-bottom:1.25rem;">Inserisci nuovo record</h1>
 
-            <?php if ($newBibid !== null): ?>
-                <ul style="margin:0.5rem 0 0.75rem 1.1rem;font-size:0.9rem;">
-                    <li>Codice titolo (bibid): <strong><?= (int)$newBibid ?></strong></li>
-                    <?php if ($newBarcode !== null): ?>
-                        <li>Codice copia (barcode): <strong><?= h($newBarcode) ?></strong></li>
-                    <?php endif; ?>
-                </ul>
+    <!-- ===== TABS ===== -->
+    <div class="ncn-tabs" role="tablist">
+        <button class="ncn-tab" data-tab="manuale" role="tab">Manuale</button>
+        <button class="ncn-tab" data-tab="sbn"     role="tab">
+            Da SBN <?= $sbnEnabled ? '<span style="color:#16a34a;font-size:.75em;">●</span>' : '' ?>
+        </button>
+        <button class="ncn-tab" data-tab="file"    role="tab">Da file <span style="font-weight:400;font-size:.82em;">(MARC21 / EndNote)</span></button>
+        <button class="ncn-tab" data-tab="marcxml" role="tab">MARCXML</button>
+    </div>
 
-                <p style="margin:0.4rem 0 0.2rem 0;font-size:0.9rem;">
-                    Azioni rapide:
+    <!-- ================================================================ -->
+    <!-- TAB: MANUALE                                                       -->
+    <!-- ================================================================ -->
+    <div class="ncn-pane" id="pane-manuale">
+
+        <?php if ($manualSuccess): ?>
+            <div class="ncn-ok">
+                <p><strong>Record creato.</strong>
+                   BIBID: <strong><?= $manualBibid ?></strong>
+                   — Barcode: <strong><?= h((string)$manualBarcode) ?></strong>
                 </p>
-                <p style="margin-top:0.3rem;display:flex;flex-wrap:wrap;gap:0.5rem;">
-                    <a
-                        href="<?= h($baseUrl) ?>/index.php?page=staff_catalog_edit&amp;bibid=<?= (int)$newBibid ?>"
-                        class="btn-primary"
-                    >
-                        Modifica record
-                    </a>
-
-                    <a
-                        href="<?= h($baseUrl) ?>/index.php?page=item&amp;bibid=<?= (int)$newBibid ?>"
-                        class="btn-secondary"
-                    >
-                        Scheda pubblica
-                    </a>
-
-                    <a
-                        href="<?= h($baseUrl) ?>/index.php?page=staff_catalog_new"
-                        class="btn-link"
-                    >
-                        Inserisci un altro
-                    </a>
-                </p>
-            <?php endif; ?>
-        </div>
-    <?php endif; ?>
-
-    <?php if ($errors !== []): ?>
-        <div class="generic-box" style="margin-top:0.75rem;">
-            <?php foreach ($errors as $msg): ?>
-                <p><?= $msg ?></p>
-            <?php endforeach; ?>
-        </div>
-    <?php endif; ?>
-
-    <style>
-    .form-section {
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        padding: 1.25rem 1.4rem 1rem;
-        margin-bottom: 1.25rem;
-        background: #fff;
-    }
-    .form-section legend {
-        padding: 0 0.5rem;
-        font-weight: 700;
-        font-size: 0.88rem;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: #6b7280;
-    }
-    .req { color: #b91c1c; }
-    #isbn-lookup-status { font-size: 0.84rem; margin-top: 0.3rem; }
-    #isbn-lookup-status.ok  { color: #15803d; }
-    #isbn-lookup-status.err { color: #b91c1c; }
-    </style>
-
-    <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_catalog_new">
-
-        <fieldset class="form-section">
-            <legend>Identificazione</legend>
-
-            <div class="search-row">
-                <label for="title">Titolo <span class="req">*</span></label>
-                <input type="text" id="title" name="title" value="<?= h($data[‘title’]) ?>" required>
-            </div>
-
-            <div class="search-row">
-                <label for="title_remainder">Complemento del titolo</label>
-                <input type="text" id="title_remainder" name="title_remainder" value="<?= h($data[‘title_remainder’]) ?>">
-            </div>
-
-            <div class="search-row">
-                <label for="author">Autore principale</label>
-                <input type="text" id="author" name="author" value="<?= h($data[‘author’]) ?>">
-            </div>
-
-            <div class="search-row">
-                <label for="responsibility">Altre responsabilità (cur., trad., ecc.)</label>
-                <input type="text" id="responsibility" name="responsibility" value="<?= h($data[‘responsibility’]) ?>">
-            </div>
-        </fieldset>
-
-        <fieldset class="form-section">
-            <legend>Classificazione</legend>
-
-            <div class="search-row-inline">
-                <div style="flex:1 1 200px;">
-                    <label for="material_cd">Tipo di materiale <span class="req">*</span></label>
-                    <select id="material_cd" name="material_cd" required>
-                        <option value="">— Seleziona —</option>
-                        <?php foreach ($materiali as $m): ?>
-                            <?php $code = (string)($m[‘code’] ?? ‘’); $desc = (string)($m[‘description’] ?? $code); ?>
-                            <option value="<?= h($code) ?>"<?= $code === $data[‘material_cd’] ? ‘ selected’ : ‘’ ?>><?= h($desc) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div style="flex:1 1 200px;">
-                    <label for="collection_cd">Sezione / collocazione <span class="req">*</span></label>
-                    <select id="collection_cd" name="collection_cd" required>
-                        <option value="">— Seleziona —</option>
-                        <?php foreach ($collezioni as $c): ?>
-                            <?php $code = (string)($c[‘code’] ?? ‘’); $desc = (string)($c[‘description’] ?? $code); ?>
-                            <option value="<?= h($code) ?>"<?= $code === $data[‘collection_cd’] ? ‘ selected’ : ‘’ ?>><?= h($desc) ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.6rem;">
+                    <a class="btn-primary"   href="<?= h($baseUrl) ?>/index.php?page=staff_catalog_edit&amp;bibid=<?= $manualBibid ?>">Modifica record</a>
+                    <a class="btn-secondary" href="<?= h($baseUrl) ?>/index.php?page=item&amp;bibid=<?= $manualBibid ?>">Scheda pubblica</a>
+                    <a class="btn-link"      href="<?= h($baseUrl) ?>/index.php?page=staff_catalog_new">Inserisci un altro</a>
                 </div>
             </div>
+        <?php endif; ?>
 
-            <div class="search-row-inline" style="margin-top:0.75rem;">
-                <div style="flex:1 1 120px;">
-                    <label for="call_nmbr1">Segnatura 1</label>
-                    <input type="text" id="call_nmbr1" name="call_nmbr1" value="<?= h($data[‘call_nmbr1’]) ?>">
+        <?php if ($manualErrors !== []): ?>
+            <div class="ncn-err"><?php foreach ($manualErrors as $e): ?><p><?= $e ?></p><?php endforeach; ?></div>
+        <?php endif; ?>
+
+        <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_catalog_new">
+            <input type="hidden" name="method" value="manual">
+
+            <fieldset class="form-section">
+                <legend>Identificazione</legend>
+                <div class="search-row">
+                    <label for="title">Titolo <span class="req">*</span></label>
+                    <input type="text" id="title" name="title" value="<?= h($manualData['title']) ?>" required>
                 </div>
-                <div style="flex:1 1 120px;">
-                    <label for="call_nmbr2">Segnatura 2</label>
-                    <input type="text" id="call_nmbr2" name="call_nmbr2" value="<?= h($data[‘call_nmbr2’]) ?>">
+                <div class="search-row">
+                    <label for="title_remainder">Complemento del titolo</label>
+                    <input type="text" id="title_remainder" name="title_remainder" value="<?= h($manualData['title_remainder']) ?>">
                 </div>
-                <div style="flex:1 1 120px;">
-                    <label for="call_nmbr3">Segnatura 3</label>
-                    <input type="text" id="call_nmbr3" name="call_nmbr3" value="<?= h($data[‘call_nmbr3’]) ?>">
+                <div class="search-row">
+                    <label for="author">Autore principale</label>
+                    <input type="text" id="author" name="author" value="<?= h($manualData['author']) ?>">
                 </div>
-            </div>
-        </fieldset>
-
-        <fieldset class="form-section">
-            <legend>Dati editoriali</legend>
-
-            <div class="search-row">
-                <label for="isbn">ISBN</label>
-                <div class="search-row-inline" style="align-items:center;">
-                    <input
-                        type="text"
-                        id="isbn"
-                        name="isbn"
-                        value="<?= h($data[‘isbn’]) ?>"
-                        placeholder="Es. 9788800000000"
-                        style="flex:1 1 220px;"
-                    >
-                    <button type="button" class="btn-primary" id="btn-isbn-lookup">
-                        Compila dai cataloghi
-                    </button>
+                <div class="search-row">
+                    <label for="responsibility">Altre responsabilità (cur., trad., ecc.)</label>
+                    <input type="text" id="responsibility" name="responsibility" value="<?= h($manualData['responsibility']) ?>">
                 </div>
-                <div id="isbn-lookup-status" style="display:none;"></div>
-                <p class="search-help" style="font-size:0.82rem;color:#666;margin-top:0.25rem;">
-                    Cerca su SBN e Google Books per precompilare i campi. Salvato come MARC 20 $a.
-                </p>
-            </div>
+            </fieldset>
 
-            <div class="search-row-inline">
-                <div style="flex:2 1 260px;">
-                    <label for="publisher">Editore</label>
-                    <input type="text" id="publisher" name="publisher" value="<?= h($data[‘publisher’]) ?>" placeholder="Es. Einaudi">
-                </div>
-                <div style="flex:1 1 120px;">
-                    <label for="pub_year">Anno</label>
-                    <input type="text" id="pub_year" name="pub_year" value="<?= h($data[‘pub_year’]) ?>" placeholder="Es. 1995">
-                </div>
-            </div>
-
-            <div class="search-row" style="margin-top:0.75rem;">
-                <label for="pages">Descrizione fisica / pagine</label>
-                <input type="text" id="pages" name="pages" value="<?= h($data[‘pages’]) ?>" placeholder="Es. 320 pagine">
-                <p class="search-help" style="font-size:0.82rem;color:#666;margin-top:0.25rem;">
-                    Salvato come MARC 300 $a (es. <em>320 pagine, ill.</em>).
-                </p>
-            </div>
-        </fieldset>
-
-        <fieldset class="form-section">
-            <legend>Soggetti</legend>
-
-            <div class="search-row">
-                <label>Parole chiave / soggetti</label>
+            <fieldset class="form-section">
+                <legend>Classificazione</legend>
                 <div class="search-row-inline">
-                    <input type="text" name="topic1" id="topic1" placeholder="Soggetto 1" value="<?= h($data[‘topic1’]) ?>" style="flex:1 1 140px;">
-                    <input type="text" name="topic2" id="topic2" placeholder="Soggetto 2" value="<?= h($data[‘topic2’]) ?>" style="flex:1 1 140px;">
-                    <input type="text" name="topic3" id="topic3" placeholder="Soggetto 3" value="<?= h($data[‘topic3’]) ?>" style="flex:1 1 140px;">
+                    <div style="flex:1 1 200px;">
+                        <label for="material_cd">Tipo di materiale <span class="req">*</span></label>
+                        <select id="material_cd" name="material_cd" required>
+                            <option value="">— Seleziona —</option>
+                            <?php foreach ($materiali as $m): $c=(string)($m['code']??''); $d=(string)($m['description']??$c); ?>
+                                <option value="<?= h($c) ?>"<?= $c===$manualData['material_cd']?' selected':''?>><?= h($d) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div style="flex:1 1 200px;">
+                        <label for="collection_cd">Sezione / collocazione <span class="req">*</span></label>
+                        <select id="collection_cd" name="collection_cd" required>
+                            <option value="">— Seleziona —</option>
+                            <?php foreach ($collezioni as $c): $cv=(string)($c['code']??''); $d=(string)($c['description']??$cv); ?>
+                                <option value="<?= h($cv) ?>"<?= $cv===$manualData['collection_cd']?' selected':''?>><?= h($d) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                 </div>
-                <div class="search-row-inline" style="margin-top:0.35rem;">
-                    <input type="text" name="topic4" id="topic4" placeholder="Soggetto 4" value="<?= h($data[‘topic4’]) ?>" style="flex:1 1 140px;">
-                    <input type="text" name="topic5" id="topic5" placeholder="Soggetto 5" value="<?= h($data[‘topic5’]) ?>" style="flex:1 1 140px;">
-                    <div style="flex:1 1 140px;"></div>
+                <div class="search-row-inline" style="margin-top:.75rem;">
+                    <div style="flex:1 1 120px;"><label for="call_nmbr1">Segnatura 1</label><input type="text" id="call_nmbr1" name="call_nmbr1" value="<?= h($manualData['call_nmbr1']) ?>"></div>
+                    <div style="flex:1 1 120px;"><label for="call_nmbr2">Segnatura 2</label><input type="text" id="call_nmbr2" name="call_nmbr2" value="<?= h($manualData['call_nmbr2']) ?>"></div>
+                    <div style="flex:1 1 120px;"><label for="call_nmbr3">Segnatura 3</label><input type="text" id="call_nmbr3" name="call_nmbr3" value="<?= h($manualData['call_nmbr3']) ?>"></div>
                 </div>
+            </fieldset>
+
+            <fieldset class="form-section">
+                <legend>Dati editoriali</legend>
+                <div class="search-row">
+                    <label for="isbn">ISBN</label>
+                    <div class="search-row-inline" style="align-items:center;">
+                        <input type="text" id="isbn" name="isbn" value="<?= h($manualData['isbn']) ?>" placeholder="Es. 9788800000000" style="flex:1 1 220px;">
+                        <button type="button" class="btn-primary" id="btn-isbn-lookup">Compila dai cataloghi</button>
+                    </div>
+                    <div id="isbn-lookup-status" style="display:none;"></div>
+                    <p class="search-help" style="font-size:.82rem;color:#666;margin-top:.25rem;">Cerca su SBN e Google Books per precompilare i campi. Salvato come MARC 20 $a.</p>
+                </div>
+                <div class="search-row-inline">
+                    <div style="flex:2 1 220px;"><label for="publisher">Editore</label><input type="text" id="publisher" name="publisher" value="<?= h($manualData['publisher']) ?>" placeholder="Es. Einaudi"></div>
+                    <div style="flex:1 1 110px;"><label for="pub_year">Anno</label><input type="text" id="pub_year" name="pub_year" value="<?= h($manualData['pub_year']) ?>" placeholder="Es. 1995"></div>
+                </div>
+                <div class="search-row" style="margin-top:.75rem;">
+                    <label for="pages">Descrizione fisica / pagine</label>
+                    <input type="text" id="pages" name="pages" value="<?= h($manualData['pages']) ?>" placeholder="Es. 320 pagine">
+                </div>
+            </fieldset>
+
+            <fieldset class="form-section">
+                <legend>Soggetti</legend>
+                <div class="search-row">
+                    <div class="search-row-inline">
+                        <input type="text" name="topic1" id="topic1" placeholder="Soggetto 1" value="<?= h($manualData['topic1']) ?>" style="flex:1 1 140px;">
+                        <input type="text" name="topic2" id="topic2" placeholder="Soggetto 2" value="<?= h($manualData['topic2']) ?>" style="flex:1 1 140px;">
+                        <input type="text" name="topic3" id="topic3" placeholder="Soggetto 3" value="<?= h($manualData['topic3']) ?>" style="flex:1 1 140px;">
+                    </div>
+                    <div class="search-row-inline" style="margin-top:.35rem;">
+                        <input type="text" name="topic4" id="topic4" placeholder="Soggetto 4" value="<?= h($manualData['topic4']) ?>" style="flex:1 1 140px;">
+                        <input type="text" name="topic5" id="topic5" placeholder="Soggetto 5" value="<?= h($manualData['topic5']) ?>" style="flex:1 1 140px;">
+                        <div style="flex:1 1 140px;"></div>
+                    </div>
+                </div>
+            </fieldset>
+
+            <fieldset class="form-section">
+                <legend>Contenuto</legend>
+                <div class="search-row">
+                    <label for="summary">Riassunto</label>
+                    <textarea id="summary" name="summary" rows="4"><?= h($manualData['summary']) ?></textarea>
+                    <p class="search-help" style="font-size:.82rem;color:#666;margin-top:.25rem;">MARC 520 $a — visibile nella scheda pubblica.</p>
+                </div>
+                <div class="search-row">
+                    <label for="notes">Note generali</label>
+                    <textarea id="notes" name="notes" rows="3"><?= h($manualData['notes']) ?></textarea>
+                </div>
+            </fieldset>
+
+            <div class="search-actions">
+                <button type="submit" class="btn-primary">Salva record</button>
+                <a class="btn-link" href="<?= h($baseUrl) ?>/index.php?page=staff">Torna alla dashboard</a>
             </div>
-        </fieldset>
+        </form>
+    </div><!-- /pane-manuale -->
 
-        <fieldset class="form-section">
-            <legend>Contenuto</legend>
+    <!-- ================================================================ -->
+    <!-- TAB: SBN                                                          -->
+    <!-- ================================================================ -->
+    <div class="ncn-pane" id="pane-sbn">
+        <p style="color:#4b5563;font-size:.9rem;margin-bottom:1rem;">
+            Cerca per ISBN, titolo o autore nel Catalogo Unico SBN. Clicca su un risultato
+            per aprire il form di modifica prima di importare.
+            <?= !$sbnEnabled ? '<strong style="color:#b45309;">⚠ Credenziali SBN non configurate.</strong>' : '<span style="color:#16a34a;">● API SBN attiva.</span>' ?>
+        </p>
 
-            <div class="search-row">
-                <label for="summary">Riassunto / descrizione del contenuto</label>
-                <textarea id="summary" name="summary" rows="4"><?= h($data[‘summary’]) ?></textarea>
-                <p class="search-help" style="font-size:0.82rem;color:#666;margin-top:0.25rem;">
-                    Salvato come MARC 520 $a. Visibile nella scheda pubblica del titolo.
-                </p>
+        <div class="sbn-import-form">
+            <div class="sbn-import-row">
+                <div>
+                    <label for="sbn-search-q">ISBN, titolo o autore</label>
+                    <input type="text" id="sbn-search-q" placeholder="Es. 9788807492938">
+                </div>
+                <div>
+                    <label for="sbn-search-type">Cerca per</label>
+                    <select id="sbn-search-type">
+                        <option value="isbn" selected>ISBN</option>
+                        <option value="titolo">Titolo</option>
+                        <option value="autore">Autore</option>
+                        <option value="any">Tutti i campi</option>
+                    </select>
+                </div>
+                <button id="sbn-search-btn" <?= !$sbnEnabled ? 'disabled' : '' ?>>🔍 Cerca su SBN</button>
             </div>
-
-            <div class="search-row">
-                <label for="notes">Note generali</label>
-                <textarea id="notes" name="notes" rows="3"><?= h($data[‘notes’]) ?></textarea>
-                <p class="search-help" style="font-size:0.82rem;color:#666;margin-top:0.25rem;">
-                    Salvato come MARC 500 $a.
-                </p>
-            </div>
-        </fieldset>
-
-        <div class="search-actions">
-            <button type="submit" class="btn-primary">Salva record</button>
-            <a class="btn-link" href="<?= h($baseUrl) ?>/index.php?page=staff">Torna alla dashboard</a>
         </div>
-    </form>
+        <div id="sbn-results"></div>
+
+        <!-- Modal -->
+        <div class="sbn-modal-overlay" id="sbn-preview-modal">
+            <div class="sbn-modal">
+                <div class="sbn-modal-header">
+                    <h3>Modifica e importa record SBN</h3>
+                    <button class="sbn-modal-close" onclick="sbnCloseModal()">&times;</button>
+                </div>
+                <div id="sbn-preview-content"></div>
+                <div class="sbn-modal-actions">
+                    <button class="sbn-modal-cancel" onclick="sbnCloseModal()">Annulla</button>
+                    <button class="sbn-modal-import" id="sbn-modal-import-btn" onclick="sbnImport()">📥 Importa nel catalogo</button>
+                </div>
+            </div>
+        </div>
+    </div><!-- /pane-sbn -->
+
+    <!-- ================================================================ -->
+    <!-- TAB: FILE                                                         -->
+    <!-- ================================================================ -->
+    <div class="ncn-pane" id="pane-file">
+
+        <?php if ($fileErrors !== [] && $fileStep !== 2): ?>
+            <div class="ncn-err"><?php foreach ($fileErrors as $e): ?><p><?= h($e) ?></p><?php endforeach; ?></div>
+        <?php endif; ?>
+
+        <?php if ($fileStep === 0 || ($fileStep === 0 && $fileErrors !== [])): ?>
+            <p style="color:#4b5563;font-size:.9rem;margin-bottom:1rem;">
+                Carica un file MARC21 ISO2709 (<code>.mrc</code>, <code>.iso</code>, <code>.marc</code>)
+                o EndNote testo (<code>.txt</code>, <code>.enw</code>).
+                I campi principali vengono estratti e mostrati in un form editabile prima di creare il record.
+            </p>
+            <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_catalog_new" enctype="multipart/form-data">
+                <input type="hidden" name="method" value="file_upload">
+                <div class="search-row">
+                    <label for="importfile">File <span class="req">*</span></label>
+                    <input type="file" id="importfile" name="importfile" accept=".mrc,.iso,.marc,.txt,.enw" required>
+                </div>
+                <div class="search-actions">
+                    <button type="submit" class="btn-primary">Carica e analizza</button>
+                </div>
+            </form>
+
+        <?php elseif ($fileStep === 2): ?>
+            <?php if ($fileErrors !== []): ?>
+                <div class="ncn-err"><?php foreach ($fileErrors as $e): ?><p><?= h($e) ?></p><?php endforeach; ?></div>
+            <?php endif; ?>
+
+            <p style="color:#4b5563;font-size:.9rem;margin-bottom:1rem;">
+                Dati estratti dal file (<strong><?= $fileKind === 'marc' ? 'MARC21' : 'EndNote' ?></strong>).
+                Controlla e modifica prima di creare il record.
+            </p>
+            <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_catalog_new">
+                <input type="hidden" name="method"      value="file_import">
+                <input type="hidden" name="filekind"    value="<?= h($fileKind) ?>">
+                <input type="hidden" name="filepreview" value="<?= h($filePreview) ?>">
+
+                <fieldset class="form-section">
+                    <legend>Dati estratti</legend>
+                    <div class="search-row"><label for="fi-isbn">ISBN</label><input type="text" id="fi-isbn" name="isbn" value="<?= h($fileExtracted['isbn'] ?? '') ?>"></div>
+                    <div class="search-row"><label for="fi-authors">Autori</label><textarea id="fi-authors" name="authors" rows="2"><?= h($fileExtracted['authors'] ?? '') ?></textarea></div>
+                    <div class="search-row"><label for="fi-title">Titolo e responsabilità <span class="req">*</span></label><textarea id="fi-title" name="title" rows="2" required><?= h($fileExtracted['title'] ?? '') ?></textarea></div>
+                    <div class="search-row"><label for="fi-pub">Pubblicazione</label><textarea id="fi-pub" name="pub" rows="2"><?= h($fileExtracted['pub'] ?? '') ?></textarea></div>
+                    <div class="search-row"><label for="fi-phys">Descrizione fisica</label><textarea id="fi-phys" name="phys" rows="2"><?= h($fileExtracted['phys'] ?? '') ?></textarea></div>
+                    <div class="search-row"><label for="fi-abstr">Riassunto / abstract</label><textarea id="fi-abstr" name="abstr" rows="3"><?= h($fileExtracted['abstr'] ?? '') ?></textarea></div>
+                    <div class="search-row"><label for="fi-subj">Soggetti</label><textarea id="fi-subj" name="subj" rows="3"><?= h($fileExtracted['subj'] ?? '') ?></textarea><p class="search-help" style="font-size:.82rem;color:#666;margin-top:.25rem;">Uno per riga o separati da punto e virgola.</p></div>
+                </fieldset>
+
+                <div class="search-actions">
+                    <button type="submit" class="btn-primary">Crea record nel catalogo</button>
+                    <a class="btn-link" href="<?= h($baseUrl) ?>/index.php?page=staff_catalog_new?tab=file">Ricomincia</a>
+                </div>
+            </form>
+
+            <?php if ($filePreview !== ''): ?>
+                <details style="margin-top:1.5rem;">
+                    <summary style="cursor:pointer;font-size:.88rem;color:#6b7280;">Anteprima completa del file</summary>
+                    <pre class="ncn-marc-pre"><?= h($filePreview) ?></pre>
+                </details>
+            <?php endif; ?>
+
+        <?php elseif ($fileStep === 3): ?>
+            <div class="ncn-ok">
+                <p><strong>Record creato.</strong> BIBID: <strong><?= (int)$fileNewBibid ?></strong></p>
+                <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.6rem;">
+                    <a class="btn-primary"   href="<?= h($baseUrl) ?>/index.php?page=staff_catalog_edit&amp;bibid=<?= (int)$fileNewBibid ?>">Modifica record</a>
+                    <a class="btn-secondary" href="<?= h($baseUrl) ?>/index.php?page=item&amp;bibid=<?= (int)$fileNewBibid ?>">Scheda pubblica</a>
+                    <a class="btn-link"      href="<?= h($baseUrl) ?>/index.php?page=staff_catalog_new">Inserisci un altro</a>
+                </div>
+            </div>
+        <?php endif; ?>
+
+    </div><!-- /pane-file -->
+
+    <!-- ================================================================ -->
+    <!-- TAB: MARCXML                                                      -->
+    <!-- ================================================================ -->
+    <div class="ncn-pane" id="pane-marcxml">
+
+        <?php if ($marcSuccess): ?>
+            <div class="ncn-ok">
+                <p><strong>Import completato:</strong> <?= $marcCount ?> record<?= $marcCount !== 1 ? 'i' : '' ?> inseriti.</p>
+                <a class="btn-secondary" style="margin-top:.5rem;display:inline-block;" href="<?= h($baseUrl) ?>/index.php?page=staff_catalog_new">Inserisci altri record</a>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($marcErrors !== []): ?>
+            <div class="ncn-err"><?php foreach ($marcErrors as $e): ?><p><?= h($e) ?></p><?php endforeach; ?></div>
+        <?php endif; ?>
+
+        <p style="color:#4b5563;font-size:.9rem;margin-bottom:1rem;">
+            Importa da un file <strong>MARCXML</strong> (<code>&lt;record&gt;</code> singolo o <code>&lt;collection&gt;</code>).
+            Mappa: <code>245$a</code> titolo, <code>100$a</code> autore, <code>650$a</code> soggetti, <code>020$a</code> ISBN.
+        </p>
+
+        <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_catalog_new" enctype="multipart/form-data">
+            <input type="hidden" name="method" value="marcxml">
+            <div class="search-row">
+                <label for="marcxml">File MARCXML (.xml) <span class="req">*</span></label>
+                <input type="file" id="marcxml" name="marcxml" accept=".xml" required>
+            </div>
+            <div class="search-row">
+                <label style="display:flex;align-items:center;gap:.5rem;font-weight:400;cursor:pointer;">
+                    <input type="checkbox" name="create_copy" value="1">
+                    Crea automaticamente una copia disponibile per ogni record
+                </label>
+            </div>
+            <div class="search-actions">
+                <button type="submit" class="btn-primary">Importa</button>
+            </div>
+        </form>
+
+        <details style="margin-top:1.5rem;">
+            <summary style="cursor:pointer;font-size:.88rem;color:#6b7280;">Mapping campi MARCXML → database</summary>
+            <ul style="margin-top:.5rem;font-size:.85rem;line-height:1.8;">
+                <li><code>245$a</code> → <code>biblio.title</code></li>
+                <li><code>245$b</code> → <code>biblio.title_remainder</code></li>
+                <li><code>100$a</code> (o <code>110$a</code>/<code>111$a</code>) → <code>biblio.author</code></li>
+                <li>Fino a 5 × <code>650$a</code> → <code>biblio.topic1..topic5</code></li>
+                <li><code>020$a</code> → <code>biblio_field</code> tag 20 $a</li>
+            </ul>
+        </details>
+    </div><!-- /pane-marcxml -->
+
 </section>
 
+<!-- Modal SBN -->
+<div class="sbn-modal-overlay" id="sbn-preview-modal">
+    <div class="sbn-modal">
+        <div class="sbn-modal-header">
+            <h3>Modifica e importa record SBN</h3>
+            <button class="sbn-modal-close" onclick="sbnCloseModal()">&times;</button>
+        </div>
+        <div id="sbn-preview-content"></div>
+        <div class="sbn-modal-actions">
+            <button class="sbn-modal-cancel" onclick="sbnCloseModal()">Annulla</button>
+            <button class="sbn-modal-import" id="sbn-modal-import-btn" onclick="sbnImport()">📥 Importa nel catalogo</button>
+        </div>
+    </div>
+</div>
+
 <script>
-// Lookup ISBN → riempie i campi dal servizio staff_isbn_lookup.php
-document.addEventListener('DOMContentLoaded', function () {
-    const btn   = document.getElementById('btn-isbn-lookup');
-    const isbnI = document.getElementById('isbn');
+(function () {
+'use strict';
+const BASE = <?= json_encode($baseUrl) ?>;
 
-    if (!btn || !isbnI) return;
+// ============================================================
+// TABS
+// ============================================================
+const tabs   = document.querySelectorAll('.ncn-tab');
+const panes  = document.querySelectorAll('.ncn-pane');
+const ACTIVE_TAB = <?= json_encode($activeTab) ?>;
 
-    const statusEl = document.getElementById('isbn-lookup-status');
-    function isbnStatus(msg, type) {
-        if (!statusEl) return;
-        statusEl.textContent = msg;
-        statusEl.className = type || '';
-        statusEl.style.display = msg ? '' : 'none';
-    }
+function activateTab(name) {
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+    panes.forEach(p => p.classList.toggle('active', p.id === 'pane-' + name));
+    try { history.replaceState(null, '', '?page=staff_catalog_new&tab=' + name); } catch(e) {}
+}
+tabs.forEach(t => t.addEventListener('click', () => activateTab(t.dataset.tab)));
+activateTab(ACTIVE_TAB);
 
-    btn.addEventListener('click', function () {
-        const isbn = (isbnI.value || '').trim();
-        if (!isbn) {
-            isbnStatus('Inserisci un ISBN prima di cercare.', 'err');
-            return;
-        }
+// ============================================================
+// ISBN LOOKUP (tab manuale)
+// ============================================================
+const btnIsbn = document.getElementById('btn-isbn-lookup');
+const isbnInp = document.getElementById('isbn');
+const isbnSts = document.getElementById('isbn-lookup-status');
 
-        btn.disabled = true;
+function isbnStatus(msg, cls) {
+    if (!isbnSts) return;
+    isbnSts.textContent = msg;
+    isbnSts.className   = cls || '';
+    isbnSts.style.display = msg ? '' : 'none';
+}
+
+if (btnIsbn && isbnInp) {
+    const orig = btnIsbn.textContent;
+    btnIsbn.addEventListener('click', function () {
+        const isbn = isbnInp.value.trim();
+        if (!isbn) { isbnStatus('Inserisci un ISBN prima di cercare.', 'err'); return; }
+        btnIsbn.disabled = true;
+        btnIsbn.textContent = 'Ricerca…';
         isbnStatus('Consulto i cataloghi…', '');
-        const originalLabel = btn.textContent;
-        btn.textContent = 'Ricerca in corso…';
 
-        // Il file è in /public, e la pagina gira da /public/index.php?page=staff_catalog_new
-        fetch('staff_isbn_lookup.php?isbn=' + encodeURIComponent(isbn), {
-            headers: { 'Accept': 'application/json' }
-        })
-        .then(function (resp) {
-            return resp.json();
-        })
-        .then(function (data) {
-            if (!data || !data.ok) {
-                isbnStatus((data && data.error) ? data.error : 'Nessun dato trovato per questo ISBN.', 'err');
-                return;
-            }
-
-            const byId = function (id) { return document.getElementById(id); };
-
-            // Compila solo se il campo è ancora vuoto (non sovrascrive il lavoro umano)
-            if (data.title && byId('title') && !byId('title').value) {
-                byId('title').value = data.title;
-            }
-            if (data.subtitle && byId('title_remainder') && !byId('title_remainder').value) {
-                byId('title_remainder').value = data.subtitle;
-            }
-            if (data.author && byId('author') && !byId('author').value) {
-                byId('author').value = data.author;
-            }
-            if (data.publisher && byId('publisher') && !byId('publisher').value) {
-                byId('publisher').value = data.publisher;
-            }
-            if (data.pub_year && byId('pub_year') && !byId('pub_year').value) {
-                byId('pub_year').value = data.pub_year;
-            }
-            if (data.pages && byId('pages') && !byId('pages').value) {
-                // Trasformiamo 320 → "320 pagine", in linea con molti 300 $a esistenti
-                byId('pages').value = data.pages + ' pagine';
-            }
-            if (data.description && byId('summary') && !byId('summary').value) {
-                byId('summary').value = data.description;
-            }
-
-            // Soggetti → prova a popolare topic1..topic5
-            let filled = 0;
-            if (Array.isArray(data.subjects) && data.subjects.length) {
-                const topicIds = ['topic1', 'topic2', 'topic3', 'topic4', 'topic5'];
-                topicIds.forEach(function (tid, idx) {
-                    const el = byId(tid);
-                    if (!el) return;
-                    if (!el.value && data.subjects[idx]) {
-                        el.value = data.subjects[idx];
-                        filled++;
-                    }
-                });
-            }
-
-            // Conta i campi compilati per il feedback
-            ['title','title_remainder','author','publisher','pub_year','pages','summary'].forEach(function(id) {
-                const el = byId(id);
-                if (el && el.value) filled++;
-            });
-            isbnStatus('Dati trovati e campi precompilati.', 'ok');
-        })
-        .catch(function (err) {
-            console.error(err);
-            isbnStatus('Errore nella chiamata ai cataloghi esterni.', 'err');
-        })
-        .finally(function () {
-            btn.disabled = false;
-            btn.textContent = originalLabel;
-        });
+        fetch('staff_isbn_lookup.php?isbn=' + encodeURIComponent(isbn), { headers: { Accept: 'application/json' } })
+            .then(r => r.json())
+            .then(function (data) {
+                if (!data || !data.ok) { isbnStatus(data?.error || 'Nessun dato trovato per questo ISBN.', 'err'); return; }
+                const byId = id => document.getElementById(id);
+                if (data.title       && byId('title')            && !byId('title').value)            byId('title').value            = data.title;
+                if (data.subtitle    && byId('title_remainder')  && !byId('title_remainder').value)  byId('title_remainder').value  = data.subtitle;
+                if (data.author      && byId('author')           && !byId('author').value)           byId('author').value           = data.author;
+                if (data.publisher   && byId('publisher')        && !byId('publisher').value)        byId('publisher').value        = data.publisher;
+                if (data.pub_year    && byId('pub_year')         && !byId('pub_year').value)         byId('pub_year').value         = data.pub_year;
+                if (data.pages       && byId('pages')            && !byId('pages').value)            byId('pages').value            = data.pages + ' pagine';
+                if (data.description && byId('summary')          && !byId('summary').value)          byId('summary').value          = data.description;
+                if (Array.isArray(data.subjects) && data.subjects.length) {
+                    ['topic1','topic2','topic3','topic4','topic5'].forEach((id, i) => {
+                        const el = byId(id);
+                        if (el && !el.value && data.subjects[i]) el.value = data.subjects[i];
+                    });
+                }
+                isbnStatus('Dati trovati e campi precompilati.', 'ok');
+            })
+            .catch(() => isbnStatus('Errore nella chiamata ai cataloghi esterni.', 'err'))
+            .finally(() => { btnIsbn.disabled = false; btnIsbn.textContent = orig; });
     });
-});
+}
+
+// ============================================================
+// SBN SEARCH + MODAL (tab sbn)
+// ============================================================
+const sbnBtn       = document.getElementById('sbn-search-btn');
+const sbnResults   = document.getElementById('sbn-results');
+const sbnModal     = document.getElementById('sbn-preview-modal');
+const sbnContent   = document.getElementById('sbn-preview-content');
+const sbnImportBtn = document.getElementById('sbn-modal-import-btn');
+let sbnResultsData = [];
+let sbnCurrent     = null;
+
+function escHtml(t) {
+    if (t == null) return '';
+    const d = document.createElement('div');
+    d.textContent = String(t);
+    return d.innerHTML;
+}
+
+if (sbnBtn) {
+    sbnBtn.addEventListener('click', async () => {
+        const q    = document.getElementById('sbn-search-q').value.trim();
+        const type = document.getElementById('sbn-search-type').value;
+        if (!q) return;
+        sbnResults.innerHTML = '<p>Ricerca in corso su SBN…</p>';
+        try {
+            const res  = await fetch(BASE + '/ajax_sbn_enrich.php?action=search_sbn&q=' + encodeURIComponent(q) + '&type=' + type);
+            const data = await res.json();
+            if (!data.ok) { sbnResults.innerHTML = '<div class="sbn-import-err">❌ ' + escHtml(data.error || 'Errore server') + '</div>'; return; }
+            if (data.total === 0) { sbnResults.innerHTML = '<div class="sbn-import-warn">⚠ Nessun risultato per: <code>' + escHtml(q) + '</code></div>'; return; }
+            sbnResultsData = data.results;
+            let html = '<table><tr><th>BID</th><th>Titolo</th><th>Autore</th><th>Editore</th><th>Anno</th><th></th></tr>';
+            for (const r of data.results) {
+                html += `<tr>
+                    <td><code>${escHtml(r.bid_sbn||'—')}</code></td>
+                    <td>${escHtml(r.titolo||'—')}</td>
+                    <td>${escHtml(r.autore||'—')}</td>
+                    <td>${escHtml(r.editore||'—')}</td>
+                    <td>${escHtml(r.anno||'—')}</td>
+                    <td>${r.bid_sbn ? `<button class="sbn-btn-preview" data-bid="${escHtml(r.bid_sbn)}">✏️ Modifica &amp; Importa</button>` : '—'}</td>
+                </tr>`;
+            }
+            sbnResults.innerHTML = html + '</table>';
+        } catch (e) {
+            sbnResults.innerHTML = '<div class="sbn-import-err">Errore di rete: ' + escHtml(e.message) + '</div>';
+        }
+    });
+
+    sbnResults.addEventListener('click', e => {
+        const btn = e.target.closest('button[data-bid]');
+        if (btn) sbnOpenModal(btn.dataset.bid);
+    });
+}
+
+function sbnOpenModal(bid) {
+    sbnCurrent = sbnResultsData.find(r => r.bid_sbn === bid);
+    if (!sbnCurrent) return;
+    sbnImportBtn.disabled = false;
+    sbnImportBtn.textContent = '📥 Importa nel catalogo';
+    sbnImportBtn.style.display = '';
+    sbnContent.innerHTML = sbnRenderForm(sbnCurrent);
+    sbnModal.classList.add('active');
+}
+
+window.sbnCloseModal = function () {
+    sbnModal.classList.remove('active');
+    sbnCurrent = null;
+    sbnImportBtn.style.display = '';
+    sbnImportBtn.disabled = false;
+    sbnImportBtn.textContent = '📥 Importa nel catalogo';
+};
+
+window.sbnImport = async function () {
+    if (!sbnCurrent) return;
+    sbnImportBtn.disabled = true;
+    sbnImportBtn.textContent = 'Importo…';
+    const editedData = sbnCollect();
+    editedData.bid_sbn = sbnCurrent.bid_sbn;
+    try {
+        const res  = await fetch(BASE + '/ajax_sbn_enrich.php?action=import_record_with_data', {
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(editedData)
+        });
+        const data = await res.json();
+        if (data.ok) {
+            const detailUrl = BASE + '/index.php?page=item&bibid=' + encodeURIComponent(data.bibid);
+            sbnContent.innerHTML = `<div class="sbn-success-banner">
+                <h4>✓ Record importato!</h4>
+                <p>BIBID <strong>${escHtml(String(data.bibid))}</strong></p>
+                <a href="${escHtml(detailUrl)}" target="_blank">→ Vedi scheda</a>
+            </div>`;
+            sbnImportBtn.style.display = 'none';
+            setTimeout(() => { sbnCloseModal(); sbnResults.innerHTML = ''; sbnResultsData = []; }, 4000);
+        } else {
+            sbnContent.insertAdjacentHTML('afterbegin', `<div class="sbn-import-err" style="margin-bottom:.75rem;">❌ ${escHtml(data.error||'Errore')}</div>`);
+            sbnImportBtn.disabled = false;
+            sbnImportBtn.textContent = '📥 Importa nel catalogo';
+        }
+    } catch (e) {
+        sbnContent.insertAdjacentHTML('afterbegin', `<div class="sbn-import-err" style="margin-bottom:.75rem;">Errore di rete: ${escHtml(e.message)}</div>`);
+        sbnImportBtn.disabled = false;
+        sbnImportBtn.textContent = '📥 Importa nel catalogo';
+    }
+};
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') sbnCloseModal(); });
+if (sbnModal) sbnModal.addEventListener('click', e => { if (e.target === sbnModal) sbnCloseModal(); });
+
+function sbnRenderForm(r) {
+    const fields = [
+        {section:'Dati principali'},
+        {label:'BID SBN',key:'bid_sbn',readonly:true},
+        {label:'Titolo',key:'titolo',type:'text'},
+        {label:'Autore',key:'autore',type:'text'},
+        {label:'Editore',key:'editore',type:'text'},
+        {label:'Luogo',key:'luogo',type:'text'},
+        {label:'Anno',key:'anno',type:'text'},
+        {label:'ISBN',key:'isbn',type:'text',readonly:true},
+        {section:'Classificazione'},
+        {label:'Dewey',key:'dewey_code',type:'text'},
+        {label:'Lingua',key:'lingua',type:'text'},
+        {label:'Paese',key:'paese',type:'text'},
+        {section:'Contenuto'},
+        {label:'Collezione',key:'collezione',type:'text'},
+        {label:'Note',key:'note',type:'textarea'},
+        {label:'Abstract',key:'abstract',type:'textarea'},
+        {label:'Soggetti',key:'soggetti',type:'textarea',
+         value:Array.isArray(r.soggetti)?r.soggetti.join('; '):(r.soggetti||''),
+         placeholder:'Separati da ; es. Resistenza; Friuli'},
+        {section:'Tipo materiale e collezione'},
+        {label:'Tipo materiale',key:'material_cd',type:'select',
+         options:[{value:'1',label:'Nastri audio'},{value:'2',label:'Libro'},{value:'3',label:'Cd audio'},
+                  {value:'4',label:'Cd ROM'},{value:'6',label:'Periodici'},{value:'7',label:'Mappe'},
+                  {value:'8',label:'Video/DVD'},{value:'9',label:'Libro Digitale'},{value:'10',label:'Opuscolo'}],value:'2'},
+        {label:'Collezione',key:'collection_cd',type:'select',
+         options:[{value:'1',label:'Narrativa (21 gg)'},{value:'2',label:'Saggistica (30 gg)'},
+                  {value:'10',label:'Periodici (14 gg)'},{value:'12',label:'Video e DVDs (15 gg)'},
+                  {value:'16',label:'Internati Militari (30 gg)'},{value:'17',label:'Teatro (30 gg)'}],value:'1'},
+        {section:'Collocazione fisica'},
+        {label:'Segnatura',key:'call_nmbr1',type:'text',placeholder:'Es. 910.019 VAN'},
+        {label:'2ª collocazione',key:'call_nmbr2',type:'text'},
+        {label:'Barcode',key:'barcode',type:'text',
+         value:'SBN-'+(r.bid_sbn||'').replace(/ITICCU/,'')+'-001'},
+        {label:'Stato copia',key:'status_cd',type:'select',
+         options:[{value:'in',label:'Disponibile (in)'},{value:'out',label:'In prestito (out)'},
+                  {value:'mnd',label:'Mancante/danneg. (mnd)'}],value:'in'},
+    ];
+    let html = '<div class="sbn-edit-grid">';
+    for (const f of fields) {
+        if (f.section) { html += `<div class="sbn-edit-section">${escHtml(f.section)}</div>`; continue; }
+        const val = f.value !== undefined ? f.value : (r[f.key] || '');
+        const dv  = Array.isArray(val) ? val.join('; ') : String(val);
+        html += `<div class="sbn-edit-label">${escHtml(f.label)}</div>`;
+        if (f.readonly) {
+            html += `<div class="sbn-edit-readonly"><code>${escHtml(dv)}</code></div>`;
+        } else if (f.type === 'textarea') {
+            html += `<div class="sbn-edit-field"><textarea id="sbn-field-${f.key}" rows="2" placeholder="${escHtml(f.placeholder||'')}">${escHtml(dv)}</textarea></div>`;
+        } else if (f.type === 'select') {
+            html += `<div class="sbn-edit-field"><select id="sbn-field-${f.key}">`;
+            for (const opt of (f.options||[])) html += `<option value="${escHtml(opt.value)}"${opt.value===String(f.value||'')?'  selected':''}>${escHtml(opt.label)}</option>`;
+            html += '</select></div>';
+        } else {
+            html += `<div class="sbn-edit-field"><input type="text" id="sbn-field-${f.key}" value="${escHtml(dv)}" placeholder="${escHtml(f.placeholder||'')}"></div>`;
+        }
+    }
+    html += '</div>';
+    if (r.sbn_link || r.opac_link) html += `<p style="margin-top:.75rem;"><a href="${escHtml(r.sbn_link||r.opac_link)}" target="_blank" style="color:#b00;font-weight:600;">→ Vedi su OPAC SBN</a></p>`;
+    return html;
+}
+
+function sbnCollect() {
+    const keys = ['titolo','autore','editore','luogo','anno','dewey_code','lingua','paese',
+                  'collezione','note','abstract','indice','dimensioni','illustrazioni','isbn'];
+    const d = {};
+    for (const k of keys) { const el = document.getElementById('sbn-field-'+k); if (el) d[k] = el.value.trim(); }
+    const sogEl = document.getElementById('sbn-field-soggetti');
+    if (sogEl) d.soggetti = sogEl.value.split(';').map(s=>s.trim()).filter(Boolean);
+    for (const k of ['material_cd','collection_cd','call_nmbr1','call_nmbr2','call_nmbr3','barcode','status_cd']) {
+        const el = document.getElementById('sbn-field-'+k); if (el) d[k] = el.value.trim();
+    }
+    return d;
+}
+
+<?php if (!empty($gbApiKey)): ?>
+// ============================================================
+// GOOGLE BOOKS COVER LOADER (homepage / già presente)
+// (omesso qui, i cover sono gestiti in item.php e home.php)
+// ============================================================
+<?php endif; ?>
+
+})();
 </script>
