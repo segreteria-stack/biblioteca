@@ -133,7 +133,7 @@ function fmt_metric(int $n): string
     <!-- ------------------------------------------------------------------ -->
     <div class="staff-quick-actions">
 
-        <a class="staff-quick-card" href="<?= h($baseUrl) ?>/index.php?page=staff_catalog_new">
+        <a class="staff-quick-card" href="<?= h($baseUrl) ?>/index.php?page=staff_catalog_entry">
             <span class="staff-quick-icon staff-quick-icon--purple">+</span>
             <span class="staff-quick-title">Nuovo record</span>
             <span class="staff-quick-text">Inserisci un titolo in catalogo</span>
@@ -180,8 +180,8 @@ function fmt_metric(int $n): string
 
                 <li class="staff-card-item staff-card-item--active">
                     <div class="staff-card-item-body">
-                        <a href="<?= h($baseUrl) ?>/index.php?page=staff_catalog_new">Nuovo record</a>
-                        <p class="staff-card-note">Form guidato per aggiungere libri e materiali (Titolo, Autore, Editore, Anno, ISBN, Soggetti, Collocazione).</p>
+                        <a href="<?= h($baseUrl) ?>/index.php?page=staff_catalog_entry">Inserisci un nuovo record</a>
+                        <p class="staff-card-note">Hub con tutti i metodi di inserimento: manuale, da SBN, da file MARC21/EndNote, da MARCXML.</p>
                     </div>
                 </li>
 
@@ -196,13 +196,6 @@ function fmt_metric(int $n): string
                     <div class="staff-card-item-body">
                         <a href="<?= h($baseUrl) ?>/index.php?page=staff_search">Ricerca nel catalogo</a>
                         <p class="staff-card-note">Ricerca avanzata con filtri per collocazione, collezione, soggetti MARC. Accesso diretto alla modifica di ogni record.</p>
-                    </div>
-                </li>
-
-                <li class="staff-card-item staff-card-item--active">
-                    <div class="staff-card-item-body">
-                        <a href="<?= h($baseUrl) ?>/index.php?page=admin_import">Importazione da file (MARC21 / EndNote)</a>
-                        <p class="staff-card-note">Wizard in tre step: carica file, controlla anteprima, crea i record in catalogo.</p>
                     </div>
                 </li>
 

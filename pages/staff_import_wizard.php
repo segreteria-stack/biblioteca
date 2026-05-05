@@ -29,8 +29,13 @@ require_once __DIR__ . '/../lib/helpers.php'; // per h()
 
 $baseUrl = function_exists('base_url') ? base_url() : '';
 
+if (empty($_SESSION['staff_user_id'])) {
+    header('Location: ' . $baseUrl . '/index.php?page=login&redirect=staff_import_file');
+    exit;
+}
+
 /**
- * Directory in cui admin_import.php salva i file.
+ * Directory in cui staff_import_file.php salva i file.
  * (radice del progetto /uploads/imports)
  */
 $importBaseDir = realpath(__DIR__ . '/../uploads/imports');
@@ -344,7 +349,7 @@ if ($errorMsg === null) {
     <?php if ($errorMsg !== null): ?>
         <p><?= h((string) $errorMsg) ?></p>
         <p>
-            <a href="<?= h($baseUrl) ?>/index.php?page=admin_import">
+            <a href="<?= h($baseUrl) ?>/index.php?page=staff_import_file">
                 Torna alla pagina di caricamento
             </a>
         </p>
@@ -451,7 +456,7 @@ if ($errorMsg === null) {
 
             <div class="search-actions" style="margin-top:1rem;">
                 <button type="button" class="btn-secondary"
-                        onclick="window.location.href='<?= h($baseUrl) ?>/index.php?page=admin_import'">
+                        onclick="window.location.href='<?= h($baseUrl) ?>/index.php?page=staff_import_file'">
                     Torna allo STEP 1 (selezione file)
                 </button>
 
@@ -534,7 +539,7 @@ if ($errorMsg === null) {
 
             <div class="search-actions" style="margin-top:1rem;">
                 <button type="button" class="btn-secondary"
-                        onclick="window.location.href='<?= h($baseUrl) ?>/index.php?page=admin_import'">
+                        onclick="window.location.href='<?= h($baseUrl) ?>/index.php?page=staff_import_file'">
                     Torna allo STEP 1 (selezione file)
                 </button>
                 <button type="submit" class="btn-primary">
@@ -557,7 +562,7 @@ if ($errorMsg === null) {
             <strong>EndNote</strong> (.txt, .enw).
         </p>
         <p>
-            <a href="<?= h($baseUrl) ?>/index.php?page=admin_import">
+            <a href="<?= h($baseUrl) ?>/index.php?page=staff_import_file">
                 Torna alla pagina di caricamento
             </a>
         </p>

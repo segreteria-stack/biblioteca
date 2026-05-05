@@ -210,7 +210,7 @@ if ($errors !== []) {
             <?php endforeach; ?>
         </div>
         <p style="margin-top:1rem;">
-            <a href="<?= h($baseUrl) ?>/index.php?page=admin_import">
+            <a href="<?= h($baseUrl) ?>/index.php?page=staff_import_file">
                 Torna allo STEP 1 (selezione file)
             </a>
         </p>
@@ -467,7 +467,7 @@ try {
             </a>
         </p>
         <p style="margin-top:0.5rem;">
-            <a href="<?= h($baseUrl) ?>/index.php?page=admin_import">
+            <a href="<?= h($baseUrl) ?>/index.php?page=staff_import_file">
                 Torna allo STEP 1 (selezione file)
             </a>
         </p>

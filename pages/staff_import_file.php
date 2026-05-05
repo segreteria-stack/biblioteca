@@ -23,7 +23,7 @@ if (session_status() === PHP_SESSION_NONE) {
 // -----------------------------------------------------------------------------
 if (empty($_SESSION['staff_user_id'])) {
     $baseUrl  = function_exists('base_url') ? base_url() : '';
-    $redirect = 'admin_import';
+    $redirect = 'staff_import_file';
     header('Location: ' . $baseUrl . '/index.php?page=login&redirect=' . urlencode($redirect));
     exit;
 }
