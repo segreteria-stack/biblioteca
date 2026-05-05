@@ -14,6 +14,7 @@ $Tcfg = (isset($cfg['tables']) && is_array($cfg['tables'])) ? $cfg['tables'] : [
 
 $T = $Tcfg + [
   'member'             => 'member',
+  'patron_auth'        => 'patron_auth',
   'biblio'             => 'biblio',
   'biblio_copy'        => 'biblio_copy',
   'biblio_status_hist' => 'biblio_status_hist',
@@ -192,14 +193,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'change_password') {
     } elseif ($pwNew !== $pwConfirm) {
       $errPw = 'La nuova password e la conferma non corrispondono.';
     } else {
-      // verifica password attuale
+      // verifica password attuale: patron_auth (bcrypt) poi fallback member.pass_user (MD5)
       try {
-        $stPw = $db->prepare("SELECT pass_user FROM {$T['member']} WHERE mbrid = ? LIMIT 1");
+        $stPw = $db->prepare("
+          SELECT pa.pass_hash, m.pass_user
+          FROM {$T['member']} m
+          LEFT JOIN {$T['patron_auth']} pa ON pa.mbrid = m.mbrid
+          WHERE m.mbrid = ? LIMIT 1
+        ");
         $stPw->execute([$mbrid]);
-        $row = $stPw->fetch(PDO::FETCH_ASSOC);
-        $stored = (string)($row['pass_user'] ?? '');
-        $ok = password_verify($pwCurrent, $stored)
-           || md5($pwCurrent) === $stored;
+        $row    = $stPw->fetch(PDO::FETCH_ASSOC);
+        $bcrypt = (string)($row['pass_hash'] ?? '');
+        $md5    = (string)($row['pass_user'] ?? '');
+        $ok = ($bcrypt !== '' && password_verify($pwCurrent, $bcrypt))
+           || ($md5 !== '' && md5($pwCurrent) === $md5);
         if (!$ok) {
           $errPw = 'La password attuale non è corretta.';
         }
@@ -220,9 +227,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'change_password') {
       $tab = 'password';
     } else {
       try {
-        $hash = password_hash($pwNew, PASSWORD_DEFAULT);
-        $stUp = $db->prepare("UPDATE {$T['member']} SET pass_user = ?, last_change_dt = NOW() WHERE mbrid = ? LIMIT 1");
-        $stUp->execute([$hash, $mbrid]);
+        $hash  = password_hash($pwNew, PASSWORD_DEFAULT);
+        $email = (string)($u['email'] ?? '');
+        // Scrivi il bcrypt in patron_auth (varchar 255), non in member.pass_user (char 32)
+        $upAuth = $db->prepare("
+          UPDATE {$T['patron_auth']} SET pass_hash = ?, updated_at = NOW() WHERE mbrid = ?
+        ");
+        $upAuth->execute([$hash, $mbrid]);
+        if ($upAuth->rowCount() === 0 && $email !== '') {
+          $db->prepare("
+            INSERT INTO {$T['patron_auth']} (mbrid, email, pass_hash) VALUES (?, ?, ?)
+          ")->execute([$mbrid, $email, $hash]);
+        }
+        $db->prepare("UPDATE {$T['member']} SET last_change_dt = NOW() WHERE mbrid = ? LIMIT 1")
+           ->execute([$mbrid]);
         $flashOk = 'Password aggiornata con successo.';
         $tab = 'password';
       } catch (Throwable $e) {

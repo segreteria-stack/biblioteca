@@ -197,26 +197,15 @@ $insertHist = static function (
     $sql = "INSERT INTO {$T_STATUS_HIST}
             (bibid, copyid, status_cd, status_begin_dt, due_back_dt, mbrid, renewal_count)
             VALUES (?, ?, ?, ?, ?, ?, ?)";
-    try {
-        $db->prepare($sql)->execute([
-            $bibid,
-            $copyid,
-            $statusCd,
-            $statusBeginDt,
-            $dueBackDt,
-            $mbrid,
-            $renewalCount,
-        ]);
-    } catch (PDOException $e) {
-        if ((int)$e->getCode() === 23000 || str_contains((string)$e->getMessage(), 'Duplicate')) {
-            $dt = (new DateTimeImmutable($statusBeginDt))->modify('+1 second')->format('Y-m-d H:i:s');
-            $db->prepare($sql)->execute([
-                $bibid, $copyid, $statusCd, $dt, $dueBackDt, $mbrid, $renewalCount
-            ]);
-            return;
-        }
-        throw $e;
-    }
+    $db->prepare($sql)->execute([
+        $bibid,
+        $copyid,
+        $statusCd,
+        $statusBeginDt,
+        $dueBackDt,
+        $mbrid,
+        $renewalCount,
+    ]);
 };
 
 // -----------------------------------------------------------------------------
