@@ -130,9 +130,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($data['title'] === '') {
         $errors[] = 'Il campo <strong>Titolo</strong> è obbligatorio.';
     }
-    if ($data['author'] === '') {
-        $errors[] = 'Il campo <strong>Autore</strong> è consigliato (può essere lasciato vuoto solo in casi particolari).';
-    }
     if ($data['material_cd'] === '') {
         $errors[] = 'Seleziona un <strong>Tipo di materiale</strong>.';
     }
@@ -489,17 +486,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </p>
                 <p style="margin-top:0.3rem;display:flex;flex-wrap:wrap;gap:0.5rem;">
                     <a
+                        href="<?= h($baseUrl) ?>/index.php?page=staff_catalog_edit&amp;bibid=<?= (int)$newBibid ?>"
+                        class="btn-primary"
+                    >
+                        Modifica record
+                    </a>
+
+                    <a
                         href="<?= h($baseUrl) ?>/index.php?page=item&amp;bibid=<?= (int)$newBibid ?>"
                         class="btn-secondary"
                     >
-                        Apri scheda pubblica
+                        Scheda pubblica
                     </a>
 
                     <a
                         href="<?= h($baseUrl) ?>/index.php?page=staff_catalog_new"
                         class="btn-link"
                     >
-                        Inserisci un altro record
+                        Inserisci un altro
                     </a>
                 </p>
             <?php endif; ?>
@@ -514,258 +518,181 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     <?php endif; ?>
 
+    <style>
+    .form-section {
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 1.25rem 1.4rem 1rem;
+        margin-bottom: 1.25rem;
+        background: #fff;
+    }
+    .form-section legend {
+        padding: 0 0.5rem;
+        font-weight: 700;
+        font-size: 0.88rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #6b7280;
+    }
+    .req { color: #b91c1c; }
+    #isbn-lookup-status { font-size: 0.84rem; margin-top: 0.3rem; }
+    #isbn-lookup-status.ok  { color: #15803d; }
+    #isbn-lookup-status.err { color: #b91c1c; }
+    </style>
+
     <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_catalog_new">
-        <div class="search-row">
-            <label for="title">Titolo <span style="color:#b91c1c;">*</span></label>
-            <input
-                type="text"
-                id="title"
-                name="title"
-                value="<?= h($data['title']) ?>"
-                required
-            >
-        </div>
 
-        <div class="search-row">
-            <label for="title_remainder">Complemento del titolo</label>
-            <input
-                type="text"
-                id="title_remainder"
-                name="title_remainder"
-                value="<?= h($data['title_remainder']) ?>"
-            >
-        </div>
+        <fieldset class="form-section">
+            <legend>Identificazione</legend>
 
-        <div class="search-row">
-            <label for="author">Autore principale</label>
-            <input
-                type="text"
-                id="author"
-                name="author"
-                value="<?= h($data['author']) ?>"
-            >
-        </div>
-
-        <div class="search-row">
-            <label for="responsibility">Altre responsabilità (cur., trad., ecc.)</label>
-            <input
-                type="text"
-                id="responsibility"
-                name="responsibility"
-                value="<?= h($data['responsibility']) ?>"
-            >
-        </div>
-
-        <div class="search-row-inline">
-            <div style="flex:1 1 200px;">
-                <label for="material_cd">Tipo di materiale <span style="color:#b91c1c;">*</span></label>
-                <select id="material_cd" name="material_cd" required>
-                    <option value="">— Seleziona —</option>
-                    <?php foreach ($materiali as $m): ?>
-                        <?php
-                            $code = (string)($m['code'] ?? '');
-                            $desc = (string)($m['description'] ?? $code);
-                        ?>
-                        <option
-                            value="<?= h($code) ?>"
-                            <?= $code === $data['material_cd'] ? 'selected' : '' ?>
-                        >
-                            <?= h($desc) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+            <div class="search-row">
+                <label for="title">Titolo <span class="req">*</span></label>
+                <input type="text" id="title" name="title" value="<?= h($data[‘title’]) ?>" required>
             </div>
 
-            <div style="flex:1 1 200px;">
-                <label for="collection_cd">Collocazione / sezione <span style="color:#b91c1c;">*</span></label>
-                <select id="collection_cd" name="collection_cd" required>
-                    <option value="">— Seleziona —</option>
-                    <?php foreach ($collezioni as $c): ?>
-                        <?php
-                            $code = (string)($c['code'] ?? '');
-                            $desc = (string)($c['description'] ?? $code);
-                        ?>
-                        <option
-                            value="<?= h($code) ?>"
-                            <?= $code === $data['collection_cd'] ? 'selected' : '' ?>
-                        >
-                            <?= h($desc) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+            <div class="search-row">
+                <label for="title_remainder">Complemento del titolo</label>
+                <input type="text" id="title_remainder" name="title_remainder" value="<?= h($data[‘title_remainder’]) ?>">
             </div>
-        </div>
 
-        <div class="search-row-inline">
-            <div style="flex:1 1 120px;">
-                <label for="call_nmbr1">Collocazione 1</label>
-                <input
-                    type="text"
-                    id="call_nmbr1"
-                    name="call_nmbr1"
-                    value="<?= h($data['call_nmbr1']) ?>"
-                >
+            <div class="search-row">
+                <label for="author">Autore principale</label>
+                <input type="text" id="author" name="author" value="<?= h($data[‘author’]) ?>">
             </div>
-            <div style="flex:1 1 120px;">
-                <label for="call_nmbr2">Collocazione 2</label>
-                <input
-                    type="text"
-                    id="call_nmbr2"
-                    name="call_nmbr2"
-                    value="<?= h($data['call_nmbr2']) ?>"
-                >
-            </div>
-            <div style="flex:1 1 120px;">
-                <label for="call_nmbr3">Collocazione 3</label>
-                <input
-                    type="text"
-                    id="call_nmbr3"
-                    name="call_nmbr3"
-                    value="<?= h($data['call_nmbr3']) ?>"
-                >
-            </div>
-        </div>
 
-        <div class="search-row-inline">
-            <div style="flex:2 1 260px;">
-                <label for="publisher">Editore</label>
-                <input
-                    type="text"
-                    id="publisher"
-                    name="publisher"
-                    value="<?= h($data['publisher']) ?>"
-                    placeholder="Es. Einaudi"
-                >
+            <div class="search-row">
+                <label for="responsibility">Altre responsabilità (cur., trad., ecc.)</label>
+                <input type="text" id="responsibility" name="responsibility" value="<?= h($data[‘responsibility’]) ?>">
             </div>
-            <div style="flex:1 1 120px;">
-                <label for="pub_year">Anno di pubblicazione</label>
-                <input
-                    type="text"
-                    id="pub_year"
-                    name="pub_year"
-                    value="<?= h($data['pub_year']) ?>"
-                    placeholder="Es. 1995"
-                >
-            </div>
-        </div>
+        </fieldset>
 
-        <div class="search-row">
-            <label for="pages">Descrizione fisica / pagine</label>
-            <input
-                type="text"
-                id="pages"
-                name="pages"
-                value="<?= h($data['pages']) ?>"
-                placeholder="Es. 320 pagine"
-            >
-            <p class="search-help" style="font-size:0.82rem;color:#666;margin-top:0.25rem;">
-                Puoi indicare semplicemente il numero di pagine o una breve descrizione
-                (es. <em>320 pagine, ill.</em>). Verrà salvato come campo MARC 300 $a.
-            </p>
-        </div>
+        <fieldset class="form-section">
+            <legend>Classificazione</legend>
 
-        <div class="search-row">
-            <label for="isbn">ISBN</label>
-            <div class="search-row-inline" style="align-items:center;">
-                <input
-                    type="text"
-                    id="isbn"
-                    name="isbn"
-                    value="<?= h($data['isbn']) ?>"
-                    placeholder="Es. 9788800000000"
-                    style="flex:1 1 220px;"
-                >
-                <button type="button" class="btn-primary" id="btn-isbn-lookup">
-                    Compila dai cataloghi esterni
-                </button>
-            </div>
-            <p class="search-help" style="font-size:0.82rem;color:#666;margin-top:0.25rem;">
-                Il pulsante prova a recuperare dati da SBN (JSON) e, se necessario, da Google Books,
-                per precompilare titolo, autore, editore, anno, soggetti e descrizione.
-                L’ISBN viene anche salvato come MARC 20 $a.
-            </p>
-        </div>
-
-        <div class="search-row">
-            <label>Soggetti / parole chiave</label>
             <div class="search-row-inline">
-                <input
-                    type="text"
-                    name="topic1"
-                    id="topic1"
-                    placeholder="Soggetto 1"
-                    value="<?= h($data['topic1']) ?>"
-                    style="flex:1 1 140px;"
-                >
-                <input
-                    type="text"
-                    name="topic2"
-                    id="topic2"
-                    placeholder="Soggetto 2"
-                    value="<?= h($data['topic2']) ?>"
-                    style="flex:1 1 140px;"
-                >
-                <input
-                    type="text"
-                    name="topic3"
-                    id="topic3"
-                    placeholder="Soggetto 3"
-                    value="<?= h($data['topic3']) ?>"
-                    style="flex:1 1 140px;"
-                >
+                <div style="flex:1 1 200px;">
+                    <label for="material_cd">Tipo di materiale <span class="req">*</span></label>
+                    <select id="material_cd" name="material_cd" required>
+                        <option value="">— Seleziona —</option>
+                        <?php foreach ($materiali as $m): ?>
+                            <?php $code = (string)($m[‘code’] ?? ‘’); $desc = (string)($m[‘description’] ?? $code); ?>
+                            <option value="<?= h($code) ?>"<?= $code === $data[‘material_cd’] ? ‘ selected’ : ‘’ ?>><?= h($desc) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div style="flex:1 1 200px;">
+                    <label for="collection_cd">Sezione / collocazione <span class="req">*</span></label>
+                    <select id="collection_cd" name="collection_cd" required>
+                        <option value="">— Seleziona —</option>
+                        <?php foreach ($collezioni as $c): ?>
+                            <?php $code = (string)($c[‘code’] ?? ‘’); $desc = (string)($c[‘description’] ?? $code); ?>
+                            <option value="<?= h($code) ?>"<?= $code === $data[‘collection_cd’] ? ‘ selected’ : ‘’ ?>><?= h($desc) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
             </div>
-            <div class="search-row-inline" style="margin-top:0.35rem;">
-                <input
-                    type="text"
-                    name="topic4"
-                    id="topic4"
-                    placeholder="Soggetto 4"
-                    value="<?= h($data['topic4']) ?>"
-                    style="flex:1 1 140px;"
-                >
-                <input
-                    type="text"
-                    name="topic5"
-                    id="topic5"
-                    placeholder="Soggetto 5"
-                    value="<?= h($data['topic5']) ?>"
-                    style="flex:1 1 140px;"
-                >
+
+            <div class="search-row-inline" style="margin-top:0.75rem;">
+                <div style="flex:1 1 120px;">
+                    <label for="call_nmbr1">Segnatura 1</label>
+                    <input type="text" id="call_nmbr1" name="call_nmbr1" value="<?= h($data[‘call_nmbr1’]) ?>">
+                </div>
+                <div style="flex:1 1 120px;">
+                    <label for="call_nmbr2">Segnatura 2</label>
+                    <input type="text" id="call_nmbr2" name="call_nmbr2" value="<?= h($data[‘call_nmbr2’]) ?>">
+                </div>
+                <div style="flex:1 1 120px;">
+                    <label for="call_nmbr3">Segnatura 3</label>
+                    <input type="text" id="call_nmbr3" name="call_nmbr3" value="<?= h($data[‘call_nmbr3’]) ?>">
+                </div>
             </div>
-        </div>
+        </fieldset>
 
-        <div class="search-row">
-            <label for="summary">Riassunto / descrizione del contenuto</label>
-            <textarea
-                id="summary"
-                name="summary"
-                rows="4"
-            ><?= h($data['summary']) ?></textarea>
-            <p class="search-help" style="font-size:0.82rem;color:#666;margin-top:0.25rem;">
-                Verrà salvato come campo MARC 520 $a ed è mostrato nella scheda titolo pubblica.
-            </p>
-        </div>
+        <fieldset class="form-section">
+            <legend>Dati editoriali</legend>
 
-        <div class="search-row">
-            <label for="notes">Note generali / note interne</label>
-            <textarea
-                id="notes"
-                name="notes"
-                rows="3"
-            ><?= h($data['notes']) ?></textarea>
-            <p class="search-help" style="font-size:0.82rem;color:#666;margin-top:0.25rem;">
-                Salvato come MARC 500 $a. Può essere usato per note generali o informazioni aggiuntive.
-            </p>
-        </div>
+            <div class="search-row">
+                <label for="isbn">ISBN</label>
+                <div class="search-row-inline" style="align-items:center;">
+                    <input
+                        type="text"
+                        id="isbn"
+                        name="isbn"
+                        value="<?= h($data[‘isbn’]) ?>"
+                        placeholder="Es. 9788800000000"
+                        style="flex:1 1 220px;"
+                    >
+                    <button type="button" class="btn-primary" id="btn-isbn-lookup">
+                        Compila dai cataloghi
+                    </button>
+                </div>
+                <div id="isbn-lookup-status" style="display:none;"></div>
+                <p class="search-help" style="font-size:0.82rem;color:#666;margin-top:0.25rem;">
+                    Cerca su SBN e Google Books per precompilare i campi. Salvato come MARC 20 $a.
+                </p>
+            </div>
+
+            <div class="search-row-inline">
+                <div style="flex:2 1 260px;">
+                    <label for="publisher">Editore</label>
+                    <input type="text" id="publisher" name="publisher" value="<?= h($data[‘publisher’]) ?>" placeholder="Es. Einaudi">
+                </div>
+                <div style="flex:1 1 120px;">
+                    <label for="pub_year">Anno</label>
+                    <input type="text" id="pub_year" name="pub_year" value="<?= h($data[‘pub_year’]) ?>" placeholder="Es. 1995">
+                </div>
+            </div>
+
+            <div class="search-row" style="margin-top:0.75rem;">
+                <label for="pages">Descrizione fisica / pagine</label>
+                <input type="text" id="pages" name="pages" value="<?= h($data[‘pages’]) ?>" placeholder="Es. 320 pagine">
+                <p class="search-help" style="font-size:0.82rem;color:#666;margin-top:0.25rem;">
+                    Salvato come MARC 300 $a (es. <em>320 pagine, ill.</em>).
+                </p>
+            </div>
+        </fieldset>
+
+        <fieldset class="form-section">
+            <legend>Soggetti</legend>
+
+            <div class="search-row">
+                <label>Parole chiave / soggetti</label>
+                <div class="search-row-inline">
+                    <input type="text" name="topic1" id="topic1" placeholder="Soggetto 1" value="<?= h($data[‘topic1’]) ?>" style="flex:1 1 140px;">
+                    <input type="text" name="topic2" id="topic2" placeholder="Soggetto 2" value="<?= h($data[‘topic2’]) ?>" style="flex:1 1 140px;">
+                    <input type="text" name="topic3" id="topic3" placeholder="Soggetto 3" value="<?= h($data[‘topic3’]) ?>" style="flex:1 1 140px;">
+                </div>
+                <div class="search-row-inline" style="margin-top:0.35rem;">
+                    <input type="text" name="topic4" id="topic4" placeholder="Soggetto 4" value="<?= h($data[‘topic4’]) ?>" style="flex:1 1 140px;">
+                    <input type="text" name="topic5" id="topic5" placeholder="Soggetto 5" value="<?= h($data[‘topic5’]) ?>" style="flex:1 1 140px;">
+                    <div style="flex:1 1 140px;"></div>
+                </div>
+            </div>
+        </fieldset>
+
+        <fieldset class="form-section">
+            <legend>Contenuto</legend>
+
+            <div class="search-row">
+                <label for="summary">Riassunto / descrizione del contenuto</label>
+                <textarea id="summary" name="summary" rows="4"><?= h($data[‘summary’]) ?></textarea>
+                <p class="search-help" style="font-size:0.82rem;color:#666;margin-top:0.25rem;">
+                    Salvato come MARC 520 $a. Visibile nella scheda pubblica del titolo.
+                </p>
+            </div>
+
+            <div class="search-row">
+                <label for="notes">Note generali</label>
+                <textarea id="notes" name="notes" rows="3"><?= h($data[‘notes’]) ?></textarea>
+                <p class="search-help" style="font-size:0.82rem;color:#666;margin-top:0.25rem;">
+                    Salvato come MARC 500 $a.
+                </p>
+            </div>
+        </fieldset>
 
         <div class="search-actions">
-            <button type="submit" class="btn-primary">
-                Salva record
-            </button>
-
-            <a class="btn-link" href="<?= h($baseUrl) ?>/index.php?page=staff">
-                Torna alla dashboard staff
-            </a>
+            <button type="submit" class="btn-primary">Salva record</button>
+            <a class="btn-link" href="<?= h($baseUrl) ?>/index.php?page=staff">Torna alla dashboard</a>
         </div>
     </form>
 </section>
@@ -778,16 +705,25 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (!btn || !isbnI) return;
 
+    const statusEl = document.getElementById('isbn-lookup-status');
+    function isbnStatus(msg, type) {
+        if (!statusEl) return;
+        statusEl.textContent = msg;
+        statusEl.className = type || '';
+        statusEl.style.display = msg ? '' : 'none';
+    }
+
     btn.addEventListener('click', function () {
         const isbn = (isbnI.value || '').trim();
         if (!isbn) {
-            alert('Inserisci un ISBN prima di cercare.');
+            isbnStatus('Inserisci un ISBN prima di cercare.', 'err');
             return;
         }
 
         btn.disabled = true;
+        isbnStatus('Consulto i cataloghi…', '');
         const originalLabel = btn.textContent;
-        btn.textContent = 'Consulto i cataloghi...';
+        btn.textContent = 'Ricerca in corso…';
 
         // Il file è in /public, e la pagina gira da /public/index.php?page=staff_catalog_new
         fetch('staff_isbn_lookup.php?isbn=' + encodeURIComponent(isbn), {
@@ -798,7 +734,7 @@ document.addEventListener('DOMContentLoaded', function () {
         })
         .then(function (data) {
             if (!data || !data.ok) {
-                alert((data && data.error) ? data.error : 'Nessun dato trovato.');
+                isbnStatus((data && data.error) ? data.error : 'Nessun dato trovato per questo ISBN.', 'err');
                 return;
             }
 
@@ -829,6 +765,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             // Soggetti → prova a popolare topic1..topic5
+            let filled = 0;
             if (Array.isArray(data.subjects) && data.subjects.length) {
                 const topicIds = ['topic1', 'topic2', 'topic3', 'topic4', 'topic5'];
                 topicIds.forEach(function (tid, idx) {
@@ -836,13 +773,21 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (!el) return;
                     if (!el.value && data.subjects[idx]) {
                         el.value = data.subjects[idx];
+                        filled++;
                     }
                 });
             }
+
+            // Conta i campi compilati per il feedback
+            ['title','title_remainder','author','publisher','pub_year','pages','summary'].forEach(function(id) {
+                const el = byId(id);
+                if (el && el.value) filled++;
+            });
+            isbnStatus('Dati trovati e campi precompilati.', 'ok');
         })
         .catch(function (err) {
             console.error(err);
-            alert('Errore nella chiamata ai cataloghi esterni.');
+            isbnStatus('Errore nella chiamata ai cataloghi esterni.', 'err');
         })
         .finally(function () {
             btn.disabled = false;

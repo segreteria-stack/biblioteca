@@ -3785,3 +3785,60 @@ input[type="submit"] {
   border: 1px solid #fecaca;
 }
 
+/* =========================================================
+   HOME – Stat badge nell'hero
+   ========================================================= */
+.home-hero-stat {
+  display: inline-block;
+  margin-top: 0.5rem;
+  font-size: 0.88rem;
+  color: #e5e7eb;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}
+.home-hero-stat strong {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+/* =========================================================
+   HOME – Sezione temi
+   ========================================================= */
+.home-highlight--topics {
+  margin-bottom: 2.5rem;
+}
+
+.home-topics-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.home-topic-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.32rem 0.75rem;
+  border-radius: 999px;
+  background-color: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  color: #374151;
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+.home-topic-chip:hover,
+.home-topic-chip:focus-visible {
+  background-color: #e5e7eb;
+  border-color: #d1d5db;
+  color: #111827;
+}
+
+.home-topic-chip-count {
+  font-size: 0.78rem;
+  color: #9ca3af;
+  font-weight: 400;
+}
+
