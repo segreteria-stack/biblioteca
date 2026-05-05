@@ -151,11 +151,15 @@ final class EmailService
 
     private function renderTemplate(string $template, array $data): string
     {
-        $rel = str_replace(['..', '\\'], ['', '/'], $template);
-        $path = $this->projectRoot . '/templates/email/' . $rel . '.php';
+        // Costruisce il percorso reale e verifica che sia dentro la cartella email/
+        $base = realpath($this->projectRoot . '/templates/email');
+        if ($base === false) return '';
+        $path = realpath($base . '/' . $template . '.php');
+        if ($path === false || strncmp($path, $base . DIRECTORY_SEPARATOR, strlen($base) + 1) !== 0) {
+            return '';
+        }
 
         if (!is_file($path)) {
-            // template mancante: fallimento “pulito”
             return '';
         }
 

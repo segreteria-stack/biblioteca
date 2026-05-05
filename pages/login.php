@@ -83,9 +83,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $dbHash = (string)($row['pwd'] ?? '');
                     $inHash = md5($password); // compatibile con schema esistente
 
-                    if (!hash_equals($dbHash, $inHash)) {
+                    // Supporta sia password_hash (bcrypt) sia MD5 legacy
+                    $md5Match    = $dbHash !== '' && strlen($dbHash) === 32 && hash_equals($dbHash, $inHash);
+                    $bcryptMatch = $dbHash !== '' && strlen($dbHash) > 32 && password_verify($password, $dbHash);
+
+                    if (!$md5Match && !$bcryptMatch) {
                         $errors[] = 'Credenziali non valide.';
                     } else {
+                        // Upgrade automatico MD5 → bcrypt al primo login
+                        if ($md5Match) {
+                            $newHash = password_hash($password, PASSWORD_DEFAULT);
+                            try {
+                                $pdo->prepare('UPDATE staff SET pwd = ? WHERE userid = ? LIMIT 1')
+                                    ->execute([$newHash, (int)$row['userid']]);
+                            } catch (Throwable $e) {
+                                // upgrade non critico, proseguiamo
+                            }
+                        }
+
                         // Login ok: impostiamo i dati di sessione staff
                         $_SESSION['staff_user_id']    = (int)$row['userid'];
                         $_SESSION['staff_username']   = (string)$row['username'];

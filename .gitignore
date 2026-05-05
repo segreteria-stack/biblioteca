@@ -1,0 +1,15 @@
+# Configurazione locale con credenziali — NON committare
+config.php
+
+# Copertine cachate
+public/assets/covers/
+
+# Cache e log
+*.log
+/tmp/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
