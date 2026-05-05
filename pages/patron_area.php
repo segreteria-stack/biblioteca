@@ -199,8 +199,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'change_password') {
         $row = $stPw->fetch(PDO::FETCH_ASSOC);
         $stored = (string)($row['pass_user'] ?? '');
         $ok = password_verify($pwCurrent, $stored)
-           || md5($pwCurrent) === $stored
-           || $pwCurrent === $stored;
+           || md5($pwCurrent) === $stored;
         if (!$ok) {
           $errPw = 'La password attuale non è corretta.';
         }
@@ -211,7 +210,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'change_password') {
 
     if (!$errPw) {
       $valResult = PatronAuth::validatePassword($pwNew);
-      if ($valResult !== true) {
+      if ($valResult !== null) {
         $errPw = $valResult;
       }
     }

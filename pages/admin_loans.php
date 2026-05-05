@@ -285,7 +285,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $member = $findMemberByBarcode($db, $memberBarcode);
                 if (!$member) throw new RuntimeException('Utente non trovato (barcode).');
-                if (((string)($member['is_active'] ?? 'Y')) !== 'Y') {
+                if (((string)($member['is_active'] ?? 'N')) !== 'Y') {
                     throw new RuntimeException('Utente disattivo: impossibile registrare prestito.');
                 }
 
@@ -394,7 +394,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $st->execute([$mbrid]);
                 $member = $st->fetch(PDO::FETCH_ASSOC);
                 if (!$member) throw new RuntimeException('Utente non trovato per questo prestito.');
-                if (((string)($member['is_active'] ?? 'Y')) !== 'Y') {
+                if (((string)($member['is_active'] ?? 'N')) !== 'Y') {
                     throw new RuntimeException('Utente disattivo: rinnovo non consentito.');
                 }
                 $classification = (int)($member['classification'] ?? 0);
