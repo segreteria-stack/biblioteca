@@ -548,15 +548,12 @@ input[type="submit"] {
   background: #fef2f2;
 }
 
-/* Azioni: Cerca + link */
-.search-actions {
-  display: flex;
-  align-items: center;
+/* Azioni: Cerca + link — scoped alla ricerca avanzata */
+.search-form-advanced .search-actions {
   gap: 1.25rem;
   margin-top: 1.5rem;
   padding-top: 1.5rem;
   border-top: 2px solid var(--color-primary);
-  flex-wrap: wrap;
 }
 
 .btn-primary-cta {
@@ -754,15 +751,7 @@ input[type="submit"] {
   margin-bottom: 2.5rem;
 }
 
-/* Header risultati: titolo + contatore + bottone a destra */
-
-.search-results-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
-}
+/* Header risultati: titolo + contatore */
 
 .search-results-header-main h1 {
   margin: 0 0 0.25rem 0;
@@ -772,12 +761,6 @@ input[type="submit"] {
   margin: 0;
   font-size: 0.9rem;
   color: var(--color-text-muted);
-}
-
-.search-results-new-search {
-  border-radius: 999px;
-  padding-inline: 1.2rem;
-  white-space: nowrap;
 }
 
 /* Lista risultati come colonna di card con spazio ampio */
@@ -1840,12 +1823,6 @@ input[type="submit"] {
   color: #374151;
 }
 
-/* Interlinea più comoda per testo lungo */
-.page-regolamento p,
-.page-regolamento li {
-  line-height: 1.6;
-}
-
 /* Box per regole chiave / condizioni importanti */
 .box-regole {
   margin: 1rem 0;
@@ -2076,13 +2053,12 @@ input[type="submit"] {
   content: "";
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(
-      to bottom,
-      rgba(0, 0, 0, 0.30) 0%,
-      rgba(0, 0, 0, 0.50) 45%,
-      rgba(0, 0, 0, 0.70) 100%
-    );
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.40) 0%,
+    rgba(0, 0, 0, 0.60) 50%,
+    rgba(139, 0, 0, 0.80) 100%
+  );
   pointer-events: none;
 }
 
@@ -2107,13 +2083,20 @@ input[type="submit"] {
   gap: 0.4rem;
   padding: 0.22rem 0.7rem;
   border-radius: 999px;
-  background-color: rgba(0, 0, 0, 0.65);
+  background-color: rgba(225, 30, 40, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   font-size: 0.8rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   font-weight: 600;
   color: #f3f4f6;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  animation: pulse-badge 2s infinite;
+}
+
+@keyframes pulse-badge {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(225, 30, 40, 0.4); }
+  50%       { opacity: 0.95; box-shadow: 0 0 0 8px rgba(225, 30, 40, 0); }
 }
 
 .home-hero-badge-dot {
@@ -2135,19 +2118,20 @@ input[type="submit"] {
 
 .home-hero-banner-text h1 {
   margin: 0.8rem 0 0.4rem;
-  font-size: 2.6rem;
+  font-size: clamp(2rem, 5vw, 3.2rem);
   line-height: 1.05;
   font-weight: 800;
   color: #ffffff;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
 }
 
 .home-hero-banner-text p {
   margin: 0.25rem 0 0;
-  font-size: 0.96rem;
-  line-height: 1.6;                    /* interlinea più leggibile */
+  font-size: 1.1rem;
+  line-height: 1.6;
   color: #f9fafb;
-  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.7);
+  max-width: 90%;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
 }
 
 /* Box ricerca nell'hero */
@@ -3157,51 +3141,7 @@ input[type="submit"] {
   color:#111;
 }
 /* =========================================================
-   HERO BANNER – MIGLIORAMENTO CONTRASTO E ANIMAZIONE
-   ========================================================= */
-
-.home-hero-banner::before {
-  /* Gradient più marcato per leggibilità */
-  background: linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 0.4) 0%,
-    rgba(0, 0, 0, 0.6) 50%,
-    rgba(139, 0, 0, 0.8) 100%
-  );
-}
-
-/* Badge animato più visibile */
-.home-hero-badge {
-  background-color: rgba(225, 30, 40, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  animation: pulse-badge 2s infinite;
-}
-
-@keyframes pulse-badge {
-  0%, 100% { 
-    opacity: 1; 
-    box-shadow: 0 0 0 0 rgba(225, 30, 40, 0.4);
-  }
-  50% { 
-    opacity: 0.95; 
-    box-shadow: 0 0 0 8px rgba(225, 30, 40, 0);
-  }
-}
-
-/* Testo hero più grande e leggibile */
-.home-hero-banner-text h1 {
-  font-size: clamp(2rem, 5vw, 3.2rem);
-  text-shadow: 0 2px 8px rgba(0,0,0,0.8);
-}
-
-.home-hero-banner-text p {
-  font-size: 1.1rem;
-  max-width: 90%;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.8);
-}
-/* =========================================================
    AREA STAFF – DASHBOARD v2 + RICERCA STAFF
-   Da appendere in coda a style.css
    ========================================================= */
 
 /* ---------------------------------------------------------
