@@ -259,16 +259,6 @@ function fmt_metric(int $n): string
             <ul class="staff-card-list">
 
                 <li class="staff-card-item staff-card-item--active">
-                    <a href="<?= h($baseUrl) ?>/index.php?page=admin_patrons">
-                        Lista utenti
-                    </a>
-                    <p class="staff-card-note">
-                        Elenco lettori con ricerca per nome, cognome, email o numero tessera.
-                        Crea nuovi utenti e aggiorna i dati anagrafici.
-                    </p>
-                </li>
-
-                <li class="staff-card-item staff-card-item--active">
                     <div class="staff-card-item-body">
                         <a href="<?= h($baseUrl) ?>/index.php?page=admin_patrons">Lista utenti</a>
                         <p class="staff-card-note">Elenco lettori con ricerca per nome, cognome, email o numero tessera. Crea nuovi utenti e aggiorna i dati anagrafici.</p>

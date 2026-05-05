@@ -122,13 +122,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (mb_strlen($passwordSet) < 8) {
             $errors[] = 'La password deve essere lunga almeno 8 caratteri.';
         } else {
-            // Compatibile con schema esistente (MD5)
-            $passwordHash = md5($passwordSet);
+            $passwordHash = password_hash($passwordSet, PASSWORD_DEFAULT);
         }
     } else {
-        // mode = invite – generiamo una password casuale non conosciuta, il vero accesso avverrà via reset
-        $randomPwd    = bin2hex(random_bytes(16));
-        $passwordHash = md5($randomPwd);
+        // mode = invite — password bloccante casuale (accesso solo via link di reset)
+        $passwordHash = password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT);
     }
 
     // Se finora nessun errore, controlliamo unicità username
@@ -209,10 +207,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmtR->bindValue(':expires_at', $expiresAt, PDO::PARAM_STR);
                 $stmtR->execute();
 
-                // Link di reset "di test" – la pagina staff_reset verrà implementata
+                // Invia link di impostazione password via email
                 $resetUrl = rtrim($baseUrl, '/') . '/index.php?page=staff_reset&token=' . urlencode($rawToken);
-                $resetInfo = 'Link di impostazione password generato (solo test): ' . $resetUrl
-                           . ' (valido fino a ' . $expiresAt . ').';
+                $staffEmailTo = trim((string)($email));
+                if ($staffEmailTo !== '' && is_file(dirname(__DIR__) . '/lib/EmailService.php')) {
+                    require_once dirname(__DIR__) . '/lib/EmailService.php';
+                    $mailer = new EmailService($cfg ?? [], dirname(__DIR__));
+                    $mailer->send(
+                        $staffEmailTo,
+                        'Imposta la tua password — Biblioteca della Resistenza',
+                        'staff/reset_password',
+                        [
+                            'username'  => $username,
+                            'resetLink' => $resetUrl,
+                        ]
+                    );
+                    $resetInfo = 'Link di impostazione password inviato a ' . $staffEmailTo . '.';
+                } else {
+                    $resetInfo = 'Email non configurata. Link di impostazione (da comunicare manualmente): ' . $resetUrl;
+                }
             }
 
             $pdo->commit();

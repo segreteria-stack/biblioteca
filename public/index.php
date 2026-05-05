@@ -106,10 +106,11 @@ $staffRoles = [
     'admin_items'      => 'patron_mgmt',
     'admin_item_edit'  => 'patron_mgmt',
     // requireAdmin
-    'admin_reports'  => 'admin',
-    'staff_user_add' => 'admin',
-    'mail_test'      => 'admin',
-    'sys_check'      => 'admin',
+    'admin_reports'    => 'admin',
+    'staff_user_add'   => 'admin',
+    'staff_user_list'  => 'admin',
+    'mail_test'        => 'admin',
+    'sys_check'        => 'admin',
 ];
 
 if (isset($staffRoles[$page]) && session_status() === PHP_SESSION_ACTIVE) {
