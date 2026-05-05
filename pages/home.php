@@ -128,7 +128,8 @@ try {
             </div>
             <?php if ($totalTitoli > 0): ?>
             <div class="home-hero-stat">
-                <strong><?= number_format($totalTitoli, 0, ',', '.') ?></strong> titoli in catalogo
+                <strong><?= number_format($totalTitoli, 0, ',', '.') ?></strong>
+                <span>titoli in catalogo</span>
             </div>
             <?php endif; ?>
             <div class="home-hero-tagline">Biblioteca · Archivi · Memorie</div>
