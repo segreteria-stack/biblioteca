@@ -6,11 +6,13 @@ declare(strict_types=1);
  *
  * - Input: username OPPURE email
  * - Crea un token monouso in tabella staff_password_reset
- * - Per ora mostra il link di reset a video (modalità test)
+ * - Invia il link di reset via email al mittente configurato
  */
 
 $pdo = DB::conn();
 $baseUrl = function_exists('base_url') ? base_url() : '';
+
+require_once dirname(__DIR__) . '/lib/RateLimit.php';
 
 $info    = '';
 $errors  = [];
@@ -19,7 +21,10 @@ $ident   = ''; // username o email inserito
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $ident = trim((string)($_POST['ident'] ?? ''));
 
-    if ($ident === '') {
+    if (!RateLimit::check($pdo, 'staff_forgot', RateLimit::clientIp(), 5, 600)) {
+        // Rate limit exceeded — show neutral message without processing
+        $info = 'Se i dati inseriti sono corretti, riceverai un link per reimpostare la password.';
+    } elseif ($ident === '') {
         $errors[] = 'Inserisci username o indirizzo email.';
     } else {
         try {
@@ -69,13 +74,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ':expires' => $expires->format('Y-m-d H:i:s'),
                 ]);
 
-                // Link di reset (per ora solo a video, in futuro via email)
                 $resetLink = rtrim($baseUrl, '/') .
                     '/index.php?page=staff_reset&token=' . urlencode($token);
 
-                // Sovrascrivo $info con la versione "test" che mostra il link
-                $info = 'Link di reset (solo per test, da NON lasciare in produzione):<br>'
-                      . '<a href="' . h($resetLink) . '">' . h($resetLink) . '</a>';
+                // Invia email se EmailService è disponibile e l'utente ha un'email
+                $staffEmail = trim((string)($user['email'] ?? ''));
+                if ($staffEmail !== '' && is_file(dirname(__DIR__) . '/lib/EmailService.php')) {
+                    require_once dirname(__DIR__) . '/lib/EmailService.php';
+                    $mail = new EmailService($cfg ?? [], dirname(__DIR__));
+                    $mail->send(
+                        $staffEmail,
+                        'Reimposta la tua password staff — Biblioteca della Resistenza',
+                        'staff/reset_password',
+                        [
+                            'username'  => (string)($user['username'] ?? ''),
+                            'resetLink' => $resetLink,
+                        ]
+                    );
+                }
             }
         } catch (Throwable $e) {
             $errors[] = 'Si è verificato un errore durante la richiesta di reset.';

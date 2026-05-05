@@ -28,9 +28,13 @@ $buildPublicBase = function () use ($cfg, $base): string {
     return $scheme . '://' . $host . $base;
 };
 
+require_once __DIR__ . '/../lib/RateLimit.php';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($hasCsrf && !csrf_check($_POST['csrf'] ?? '')) {
         $err = 'Token CSRF non valido.';
+    } elseif ($db instanceof PDO && !RateLimit::check($db, 'patron_forgot', RateLimit::clientIp(), 5, 600)) {
+        $info = 'Se l\'email è registrata, riceverai a breve un link per reimpostare la password.';
     } else {
         $email = trim((string)($_POST['email'] ?? ''));
 

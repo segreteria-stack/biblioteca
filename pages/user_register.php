@@ -20,6 +20,7 @@ if (session_status() === PHP_SESSION_NONE) {
 $hasCsrf = function_exists('csrf_check') && function_exists('csrf_token');
 
 require_once __DIR__ . '/../lib/PatronAuth.php';
+require_once __DIR__ . '/../lib/RateLimit.php';
 
 $base    = rtrim((string)($cfg['app']['base_url'] ?? ''), '/');
 $logFile = '/tmp/patron_register_error.log';
@@ -28,6 +29,8 @@ if ($err === '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($hasCsrf && !csrf_check($_POST['csrf'] ?? '')) {
         $err = 'Token CSRF non valido.';
+    } elseif (!RateLimit::check($db, 'register', RateLimit::clientIp(), 5, 600)) {
+        $err = 'Troppi tentativi di registrazione. Riprova tra qualche minuto.';
     } else {
         $firstName      = trim((string)($_POST['first_name'] ?? ''));
         $lastName       = trim((string)($_POST['last_name'] ?? ''));
@@ -91,6 +94,7 @@ if ($err === '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                          ?, '', ?, ?, ?, 1, 'Y', NOW(),
                          ?, ?, ?, ?, ?, ?)
                 ");
+                // is_active='N': l'account è inattivo fino alla verifica email
                 $insMember->execute([
                     $tmpBarcode,
                     $lastName, $firstName, $cel,
@@ -101,12 +105,14 @@ if ($err === '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $mbrid   = (int)$db->lastInsertId();
                 $barcode = (string)(1000 + $mbrid);
 
-                $db->prepare("UPDATE member SET barcode_nmbr = ? WHERE mbrid = ? LIMIT 1")
+                $db->prepare("UPDATE member SET barcode_nmbr = ?, is_active = 'N' WHERE mbrid = ? LIMIT 1")
                    ->execute([$barcode, $mbrid]);
 
-                $hash = password_hash($password, PASSWORD_DEFAULT);
-                $db->prepare("INSERT INTO patron_auth (mbrid, email, pass_hash, created_at) VALUES (?, ?, ?, NOW())")
-                   ->execute([$mbrid, $email, $hash]);
+                $hash        = password_hash($password, PASSWORD_DEFAULT);
+                $verifyToken = bin2hex(random_bytes(32));
+                $verifyExp   = date('Y-m-d H:i:s', time() + 86400); // 24 ore
+                $db->prepare("INSERT INTO patron_auth (mbrid, email, pass_hash, reset_token, reset_expires, created_at) VALUES (?, ?, ?, ?, ?, NOW())")
+                   ->execute([$mbrid, $email, $hash, $verifyToken, $verifyExp]);
 
                 try {
                     $db->prepare("INSERT INTO member_fields (mbrid, code, data) VALUES (?, 'Non socio', '')")
@@ -117,9 +123,20 @@ if ($err === '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $db->commit();
 
-                // Notifica staff
+                // Invia email di verifica al patron
                 require_once __DIR__ . '/../lib/EmailService.php';
-                $mail    = new EmailService($cfg, dirname(__DIR__));
+                $mail       = new EmailService($cfg, dirname(__DIR__));
+                $verifyLink = rtrim((string)($cfg['app']['public_host'] ?? ''), '/') .
+                    rtrim((string)($cfg['app']['base_url'] ?? ''), '/') .
+                    '/index.php?page=patron_verify&token=' . urlencode($verifyToken);
+
+                $mail->send($email, 'Conferma la tua registrazione — Biblioteca della Resistenza', 'patron/verify_email', [
+                    'firstName'  => $firstName,
+                    'verifyLink' => $verifyLink,
+                    'expires'    => $verifyExp,
+                ]);
+
+                // Notifica staff
                 $staffTo = trim((string)($cfg['mail']['staff_email'] ?? ''));
                 if ($staffTo !== '') {
                     $adminLink = '';
@@ -138,7 +155,7 @@ if ($err === '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     ]);
                 }
 
-                $ok = 'Registrazione completata. Ora puoi accedere. Numero tessera: ' . $barcode . '.';
+                $ok = 'Registrazione completata! Controlla la tua email (' . $email . ') e clicca il link di conferma per attivare l\'account.';
 
             } catch (Throwable $e) {
                 if ($db->inTransaction()) $db->rollBack();

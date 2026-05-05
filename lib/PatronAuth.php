@@ -47,11 +47,13 @@ class PatronAuth
     $st->execute([$login, $login]);
     $u = $st->fetch(PDO::FETCH_ASSOC);
     if ($u && !empty($u['pass_hash']) && password_verify($password, (string)$u['pass_hash'])) {
+      session_regenerate_id(true);
       $_SESSION['patron'] = [
         'mbrid' => (int)$u['mbrid'],
         'name'  => trim(($u['first_name'] ?? '') . ' ' . ($u['last_name'] ?? '')),
         'email' => $u['auth_email'] ?? $u['member_email'] ?? null,
       ];
+      $_SESSION['_last_activity'] = time();
       return true;
     }
     // 2) Fallback storico: member.pass_user MD5 (barcode o email)
@@ -65,11 +67,13 @@ class PatronAuth
     $m = $st2->fetch(PDO::FETCH_ASSOC);
     if ($m && strtolower((string)($m['pass_user'] ?? '')) === md5($password)) {
       $email = $m['email'] ?? null;
+      session_regenerate_id(true);
       $_SESSION['patron'] = [
         'mbrid' => (int)$m['mbrid'],
         'name'  => trim(($m['first_name'] ?? '') . ' ' . ($m['last_name'] ?? '')),
         'email' => $email,
       ];
+      $_SESSION['_last_activity'] = time();
       // 3) Upgrade automatico a password_hash
       if ($email) {
         $newHash = password_hash($password, PASSWORD_DEFAULT);

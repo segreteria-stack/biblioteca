@@ -18,6 +18,7 @@ $T = $Tcfg + [
 ];
 
 require_once __DIR__ . '/../lib/PatronAuth.php';
+require_once __DIR__ . '/../lib/RateLimit.php';
 
 $err = '';
 
@@ -30,6 +31,8 @@ $hasCsrf = function_exists('csrf_check') && function_exists('csrf_token');
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if ($hasCsrf && !csrf_check($_POST['csrf'] ?? '')) {
     $err = 'Token CSRF non valido';
+  } elseif (!RateLimit::check($db, 'patron_login', RateLimit::clientIp(), 10, 300)) {
+    $err = 'Troppi tentativi di accesso. Riprova tra qualche minuto.';
   } else {
     $ok = PatronAuth::login($db, $T, trim($_POST['login'] ?? ''), trim($_POST['password'] ?? ''));
     if ($ok) {

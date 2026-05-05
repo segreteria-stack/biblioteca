@@ -22,6 +22,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+require_once dirname(__DIR__) . '/lib/RateLimit.php';
+
 $baseUrl = function_exists('base_url') ? base_url() : '';
 
 $errors   = [];
@@ -44,7 +46,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim((string)($_POST['username'] ?? ''));
     $password = (string)($_POST['password'] ?? '');
 
-    if ($username === '' || $password === '') {
+    if (!RateLimit::check($pdo, 'staff_login', RateLimit::clientIp(), 10, 300)) {
+        $errors[] = 'Troppi tentativi di accesso. Riprova tra qualche minuto.';
+    } elseif ($username === '' || $password === '') {
         $errors[] = 'Inserisci sia lo username che la password.';
     } else {
         try {
@@ -101,7 +105,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             }
                         }
 
-                        // Login ok: impostiamo i dati di sessione staff
+                        // Login ok: rigenera session ID per prevenire session fixation
+                        session_regenerate_id(true);
+                        $_SESSION['_last_activity']   = time();
                         $_SESSION['staff_user_id']    = (int)$row['userid'];
                         $_SESSION['staff_username']   = (string)$row['username'];
                         $_SESSION['staff_fullname']   = trim((string)($row['first_name'] ?? '') . ' ' . (string)($row['last_name'] ?? ''));
