@@ -156,6 +156,29 @@ function ncn_add_field(PDO $pdo, int $bibid, int $tag, string $sub, string $val)
         ->execute([$bibid, $tag, $sub, $val]);
 }
 
+/**
+ * Estrae e pulisce il codice ISBN dal primo campo MARC 020 $a.
+ * Restituisce stringa vuota se non trovato.
+ */
+function ncn_extract_isbn_marc(array $marc): string
+{
+    foreach ($marc['fields'] as $f) {
+        if (($f['tag'] ?? '') !== '020' || !empty($f['ctrl'])) continue;
+        foreach ($f['subfields'] as $sf) {
+            if ($sf['code'] === 'a') {
+                $raw = trim($sf['val']);
+                if ($raw === '') continue;
+                // Prendi solo la parte numerica prima di eventuali qualificatori
+                // es. "978-88-12-34567-8 (brossura)" → "9788812345678"
+                $part = preg_split('/[\s(]/', $raw)[0] ?? $raw;
+                $clean = strtoupper(preg_replace('/[^0-9Xx]/', '', $part));
+                if ($clean !== '') return $clean;
+            }
+        }
+    }
+    return '';
+}
+
 // ============================================================
 // SHARED HELPERS — barcode automatico
 // ============================================================
@@ -289,7 +312,7 @@ if ($method === 'file_upload') {
             $fileKind = 'marc';
             $marc = ncn_marc_parse($raw);
             $filePreview = ncn_marc_text($marc);
-            $isbn    = ncn_marc_subs($marc, '020', ['a','z']);
+            $isbn    = ncn_extract_isbn_marc($marc);
             $authors = trim(ncn_marc_subs($marc,'100',['a']) . ' ' . ncn_marc_subs($marc,'700',['a']));
             $title   = ncn_marc_subs($marc, '245', ['a','b','c']);
             $pub     = ncn_marc_subs($marc, '260', ['a','b','c']) ?: ncn_marc_subs($marc, '264', ['a','b','c']);
@@ -310,7 +333,10 @@ if ($method === 'file_upload') {
             $series  = ($p['B'][0] ?? '');
             $ed      = ($p['7'][0] ?? '');
             $phys    = trim(($series ? 'Serie: '.$series : '') . ($ed ? ' Edizione: '.$ed : ''));
-            $isbn = $abstr = $subj = '';
+            $abstr = $subj = '';
+            // %@ = ISBN/ISSN in EndNote format
+            $isbnRawEn = trim(($p['@'][0] ?? ''));
+            $isbn = $isbnRawEn !== '' ? strtoupper(preg_replace('/[^0-9Xx]/', '', $isbnRawEn)) : '';
             $filePreview = trim($raw);
             $fileExtracted = compact('isbn','authors','title','pub','phys','abstr','subj');
             $fileStep = 2;
