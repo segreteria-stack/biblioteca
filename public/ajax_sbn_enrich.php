@@ -119,6 +119,63 @@ function updateTopics(\PDO $pdo, int $bibid, array $soggetti): void
     ]);
 }
 
+/**
+ * Restituisce il material_cd di default (da default_flg='Y', poi primo codice).
+ */
+function defaultMaterialCd(\PDO $pdo): int
+{
+    $st = $pdo->query("SELECT code FROM material_type_dm WHERE default_flg = 'Y' ORDER BY code LIMIT 1");
+    $row = $st->fetch(\PDO::FETCH_ASSOC);
+    if ($row) return (int)$row['code'];
+    $st = $pdo->query("SELECT code FROM material_type_dm ORDER BY code LIMIT 1");
+    $row = $st->fetch(\PDO::FETCH_ASSOC);
+    return $row ? (int)$row['code'] : 1;
+}
+
+/**
+ * Restituisce il collection_cd di default (da default_flg='Y', poi primo codice).
+ */
+function defaultCollectionCd(\PDO $pdo): int
+{
+    $st = $pdo->query("SELECT code FROM collection_dm WHERE default_flg = 'Y' ORDER BY code LIMIT 1");
+    $row = $st->fetch(\PDO::FETCH_ASSOC);
+    if ($row) return (int)$row['code'];
+    $st = $pdo->query("SELECT code FROM collection_dm ORDER BY code LIMIT 1");
+    $row = $st->fetch(\PDO::FETCH_ASSOC);
+    return $row ? (int)$row['code'] : 1;
+}
+
+/**
+ * Inserisce o aggiorna un campo MARC (upsert su tag+subfield_cd).
+ * Utile per ISBN: se già presente con valore diverso, aggiorna.
+ */
+function upsertField(\PDO $pdo, int $bibid, int $tag, string $subfield, ?string $value): bool
+{
+    if ($value === null || $value === '') return false;
+    if (fieldExists($pdo, $bibid, $tag, $subfield)) {
+        $pdo->prepare("UPDATE biblio_field SET field_data = ? WHERE bibid = ? AND tag = ? AND subfield_cd = ?")
+            ->execute([$value, $bibid, $tag, $subfield]);
+        return true;
+    }
+    $pdo->prepare("INSERT INTO biblio_field (bibid, tag, ind1_cd, ind2_cd, subfield_cd, field_data) VALUES (?, ?, NULL, NULL, ?, ?)")
+        ->execute([$bibid, $tag, $subfield, $value]);
+    return true;
+}
+
+/**
+ * Genera il prossimo (copyid, barcode) per un bibid.
+ * Barcode = bibid a 5 cifre + copyid a 2 cifre.
+ */
+function nextBarcode(\PDO $pdo, int $bibid): array
+{
+    $st = $pdo->prepare('SELECT COALESCE(MAX(copyid), 0) + 1 FROM biblio_copy WHERE bibid = ?');
+    $st->execute([$bibid]);
+    $copyid  = (int)$st->fetchColumn();
+    $barcode = str_pad((string)$bibid, 5, '0', STR_PAD_LEFT)
+             . str_pad((string)$copyid, 2, '0', STR_PAD_LEFT);
+    return [$copyid, $barcode];
+}
+
 /* ================================================================
  * Azione: test_connection
  * ================================================================ */
@@ -299,13 +356,18 @@ if ($action === 'import_record') {
 
         $data = $client->extractFullData($doc);
 
+        $matCd = defaultMaterialCd($pdo);
+        $colCd = defaultCollectionCd($pdo);
+
         $ins = $pdo->prepare("
-            INSERT INTO biblio (title, author, material_cd, collection_cd, create_dt, last_change_dt, last_change_userid)
-            VALUES (?, ?, '1', '1', NOW(), NOW(), ?)
+            INSERT INTO biblio (title, author, material_cd, collection_cd, opac_flg, create_dt, last_change_dt, last_change_userid)
+            VALUES (?, ?, ?, ?, 'Y', NOW(), NOW(), ?)
         ");
         $ins->execute([
             $data['titolo'] ?? '[Senza titolo]',
             $data['autore'] ?? '',
+            $matCd,
+            $colCd,
             $_SESSION['staff_user_id'] ?? 0,
         ]);
         $bibid = (int)$pdo->lastInsertId();
@@ -313,7 +375,7 @@ if ($action === 'import_record') {
         $inserted = [];
 
         if (insertField($pdo, $bibid, 901, 'a', $bid)) $inserted[] = 'bid_sbn';
-        if (insertField($pdo, $bibid, 20, 'a', $data['isbn_sbn'])) $inserted[] = 'isbn';
+        if (upsertField($pdo, $bibid, 20, 'a', $data['isbn_sbn'])) $inserted[] = 'isbn';
         if (insertField($pdo, $bibid, 100, 'a', $data['autore'])) $inserted[] = 'autore_marc';
         if (!empty($data['autore'])) {
             $upd = $pdo->prepare("UPDATE biblio SET author = ? WHERE bibid = ?");
@@ -340,9 +402,16 @@ if ($action === 'import_record') {
         // FIX: popola topic1..5 anche in import_record
         updateTopics($pdo, $bibid, $data['soggetti'] ?? []);
 
+        // Crea copia fisica in biblio_copy
+        [$copyid, $barcode] = nextBarcode($pdo, $bibid);
+        $pdo->prepare("INSERT INTO biblio_copy (bibid, copyid, barcode_nmbr, status_cd, create_dt, status_begin_dt, renewal_count) VALUES (?, ?, ?, 'in', NOW(), NOW(), 0)")
+            ->execute([$bibid, $copyid, $barcode]);
+        $inserted[] = 'copia';
+
         echo json_encode([
             'ok'      => true,
             'bibid'   => $bibid,
+            'copyid'  => $copyid,
             'inserted'=> $inserted,
             'data'    => $data,
         ], JSON_UNESCAPED_UNICODE);
@@ -496,14 +565,15 @@ if ($action === 'run_batch') {
             if ($data['bid_sbn'] && insertField($pdo, $bibid, 901, 'a', $data['bid_sbn'])) {
                 $inserted[] = 'bid_sbn';
             }
-                    if ($data['isbn'] && insertField($pdo, $bibid, 20, 'a', $data['isbn'])) {
-            $inserted[] = 'isbn';
-        }
+            if ($data['isbn_sbn'] && upsertField($pdo, $bibid, 20, 'a', $data['isbn_sbn'])) {
+                $inserted[] = 'isbn';
+            }
             if ($data['autore'] && insertField($pdo, $bibid, 100, 'a', $data['autore'])) {
                 $inserted[] = 'autore_marc';
             }
-            if ($data['autore'] && $currentAuthor === '' && updateBiblioAuthor($pdo, $bibid, $data['autore'])) {
-                $inserted[] = 'autore_biblio';
+            if ($data['autore']) {
+                $pdo->prepare("UPDATE biblio SET author = ? WHERE bibid = ? AND (author IS NULL OR author = '')")
+                    ->execute([$data['autore'], $bibid]);
             }
             if ($data['luogo'] && insertField($pdo, $bibid, 260, 'a', $data['luogo'])) {
                 $inserted[] = 'luogo';
@@ -667,11 +737,13 @@ if ($action === 'enrich_single') {
         if (!empty($data['bid_sbn'])) {
             if (insertField($pdo, $bibid, 901, 'a', $data['bid_sbn'])) $inserted[] = 'bid_sbn';
         }
+        if (!empty($data['isbn_sbn'])) {
+            if (upsertField($pdo, $bibid, 20, 'a', $data['isbn_sbn'])) $inserted[] = 'isbn';
+        }
         if (!empty($data['autore'])) {
             if (insertField($pdo, $bibid, 100, 'a', $data['autore'])) $inserted[] = 'autore_marc';
-            if ($currentAuthor === '' && updateBiblioAuthor($pdo, $bibid, $data['autore'])) {
-                $inserted[] = 'autore_biblio';
-            }
+            $pdo->prepare("UPDATE biblio SET author = ? WHERE bibid = ? AND (author IS NULL OR author = '')")
+                ->execute([$data['autore'], $bibid]);
         }
         if (!empty($data['luogo'])) {
             if (insertField($pdo, $bibid, 260, 'a', $data['luogo'])) $inserted[] = 'luogo';
@@ -913,15 +985,19 @@ if ($action === 'enrich_by_bid') {
         if ($data['bid_sbn'] && insertField($pdo, $bibid, 901, 'a', $data['bid_sbn'])) {
             $inserted[] = 'bid_sbn';
         }
-                if ($data['isbn'] && insertField($pdo, $bibid, 20, 'a', $data['isbn'])) {
+        if ($data['isbn_sbn'] && upsertField($pdo, $bibid, 20, 'a', $data['isbn_sbn'])) {
             $inserted[] = 'isbn';
         }
         if ($data['autore'] && insertField($pdo, $bibid, 100, 'a', $data['autore'])) {
             $inserted[] = 'autore_marc';
         }
-        // FIX: aggiorna author in biblio se vuoto (mancava in enrich_by_bid)
         if ($data['autore']) {
-            updateBiblioAuthor($pdo, $bibid, $data['autore']);
+            $pdo->prepare("UPDATE biblio SET author = ? WHERE bibid = ? AND (author IS NULL OR author = '')")
+                ->execute([$data['autore'], $bibid]);
+        }
+        if ($data['titolo']) {
+            $pdo->prepare("UPDATE biblio SET title = ? WHERE bibid = ? AND (title IS NULL OR title = '' OR title = '[Senza titolo]')")
+                ->execute([$data['titolo'], $bibid]);
         }
         if ($data['luogo'] && insertField($pdo, $bibid, 260, 'a', $data['luogo'])) {
             $inserted[] = 'luogo';

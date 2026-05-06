@@ -464,9 +464,17 @@ if ($method === 'marcxml') {
 
                 if ($records === []) throw new \Exception('Formato XML non riconosciuto (atteso &lt;collection&gt; o &lt;record&gt;).');
 
+                // Legge i default da material_type_dm e collection_dm
+                $defMatRow = $pdo->query("SELECT code FROM material_type_dm WHERE default_flg='Y' ORDER BY code LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+                if (!$defMatRow) $defMatRow = $pdo->query("SELECT code FROM material_type_dm ORDER BY code LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+                $defColRow = $pdo->query("SELECT code FROM collection_dm WHERE default_flg='Y' ORDER BY code LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+                if (!$defColRow) $defColRow = $pdo->query("SELECT code FROM collection_dm ORDER BY code LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+                $xmlMatCd = $defMatRow ? (int)$defMatRow['code'] : 1;
+                $xmlColCd = $defColRow ? (int)$defColRow['code'] : 1;
+
                 $insBib = $pdo->prepare('INSERT INTO biblio
-                    (title,title_remainder,author,topic1,topic2,topic3,topic4,topic5,opac_flg,create_dt,last_change_dt,last_change_userid)
-                    VALUES (?,?,?,?,?,?,?,?,\'Y\',NOW(),NOW(),?)');
+                    (title,title_remainder,responsibility_stmt,author,material_cd,collection_cd,topic1,topic2,topic3,topic4,topic5,opac_flg,create_dt,last_change_dt,last_change_userid)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,\'Y\',NOW(),NOW(),?)');
                 $insF = $pdo->prepare('INSERT INTO biblio_field (bibid,tag,subfield_cd,field_data) VALUES (?,?,?,?)');
                 $insC = $pdo->prepare('INSERT INTO biblio_copy (bibid,copyid,barcode_nmbr,status_cd,create_dt,status_begin_dt,renewal_count) VALUES (?,?,?,\'in\',NOW(),NOW(),0)');
 
@@ -482,6 +490,19 @@ if ($method === 'marcxml') {
                             }
                         }
                         return null;
+                    };
+                    // Raccoglie tutti i valori di un tag+code (campi ripetibili)
+                    $mxSubsAll = function(string $tag, string $code) use ($rec): array {
+                        $out = [];
+                        foreach ($rec->datafield as $df) {
+                            if ((string)$df['tag'] === $tag) {
+                                foreach ($df->subfield as $sf) {
+                                    $v = trim((string)$sf);
+                                    if ((string)$sf['code'] === $code && $v !== '') $out[] = $v;
+                                }
+                            }
+                        }
+                        return $out;
                     };
                     $mxTopics = function() use ($rec): array {
                         $t = [];
@@ -499,16 +520,26 @@ if ($method === 'marcxml') {
                         return $t;
                     };
 
-                    $titleMain = $mxSubs('245','a') ?? '';
-                    $titleRem  = $mxSubs('245','b') ?? '';
-                    $author    = $mxSubs('100','a') ?? ($mxSubs('110','a') ?? ($mxSubs('111','a') ?? ''));
-                    $topics    = array_pad($mxTopics(), 5, null);
-                    $isbnRaw   = $mxSubs('020','a');
-                    $isbn      = $isbnRaw ? strtoupper(preg_replace('/[^0-9Xx]/','',$isbnRaw)) : null;
+                    $titleMain  = $mxSubs('245','a') ?? '';
+                    $titleRem   = $mxSubs('245','b') ?? '';
+                    $titleResp  = $mxSubs('245','c') ?? '';
+                    $author     = $mxSubs('100','a') ?? ($mxSubs('110','a') ?? ($mxSubs('111','a') ?? ''));
+                    $topics     = array_pad($mxTopics(), 5, null);
+                    $isbnRaw    = $mxSubs('020','a');
+                    $isbn       = $isbnRaw ? strtoupper(preg_replace('/[^0-9Xx]/','',$isbnRaw)) : null;
+                    // Pubblicazione: preferisce 260, poi 264
+                    $pubPlace   = $mxSubs('260','a') ?? ($mxSubs('264','a') ?? '');
+                    $pubEdit    = $mxSubs('260','b') ?? ($mxSubs('264','b') ?? '');
+                    $pubAnno    = $mxSubs('260','c') ?? ($mxSubs('264','c') ?? '');
+                    $phys       = $mxSubs('300','a') ?? '';
 
-                    $insBib->execute([$titleMain,$titleRem,$author,$topics[0],$topics[1],$topics[2],$topics[3],$topics[4],$staffUserId]);
+                    $insBib->execute([$titleMain,$titleRem,$titleResp,$author,$xmlMatCd,$xmlColCd,$topics[0],$topics[1],$topics[2],$topics[3],$topics[4],$staffUserId]);
                     $bibid = (int)$pdo->lastInsertId();
-                    if ($isbn) $insF->execute([$bibid,20,'a',$isbn]);
+                    if ($isbn)    $insF->execute([$bibid,20,'a',$isbn]);
+                    if ($pubPlace !== '') $insF->execute([$bibid,260,'a',$pubPlace]);
+                    if ($pubEdit  !== '') $insF->execute([$bibid,260,'b',$pubEdit]);
+                    if ($pubAnno  !== '') $insF->execute([$bibid,260,'c',$pubAnno]);
+                    if ($phys     !== '') $insF->execute([$bibid,300,'a',$phys]);
 
                     if ($createCopy) {
                         [$copyid, $barcode] = ncn_next_barcode($pdo, $bibid);
