@@ -2052,7 +2052,8 @@ input[type="submit"] {
 
 .home-hero-banner {
   position: relative;
-  margin-bottom: 2.75rem;              /* più respiro prima della card centrale */
+  margin-top: 1.75rem;                 /* stacca dall'header sticky */
+  margin-bottom: 2.75rem;             /* respiro prima della card centrale */
   color: #f9fafb;
   font-family: "MessinaSansWeb", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background-image: url("../assets/FOTO COPERTINA_5.png");

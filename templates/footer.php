@@ -22,7 +22,8 @@ if (!empty($_SESSION['patron']) && is_array($_SESSION['patron'])) {
         <?php
         // TAG CLOUD: ultimo elemento del main, solo su pagine pubbliche OPAC
         // Esclusa dalla scheda singola (page=item) per non disturbare i soggetti specifici.
-        if (in_array($pageId, ['home', 'search', 'search_advanced'], true)) {
+        // 'home' esclusa: ha già la propria sezione "Esplora per tema" con chip stilizzate
+        if (in_array($pageId, ['search', 'search_advanced'], true)) {
             include __DIR__ . '/tag_cloud.php';
         }
         ?>
