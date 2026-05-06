@@ -102,11 +102,11 @@ function buildTitleCondition(string $value, string $op, array &$params): ?string
     $value = trim($value);
     if ($value === '') return null;
     if (strtolower($op) === 'contains') {
-        $terms = array_values(array_filter(preg_split('/\s+/', $value) ?: [], fn($t) => trim($t) !== ''));
-        if ($terms === []) return null;
+        $tokens = search_tokenize($value);
+        if ($tokens === []) return null;
         $parts = [];
-        foreach ($terms as $term) {
-            $pattern  = '%' . $term . '%';
+        foreach ($tokens as $tok) {
+            $pattern  = '%' . $tok['value'] . '%';
             $parts[]  = '(title LIKE ? OR title_remainder LIKE ?)';
             $params[] = $pattern;
             $params[] = $pattern;
@@ -122,6 +122,17 @@ function buildTitleCondition(string $value, string $op, array &$params): ?string
 function buildAuthorCondition(string $value, string $op, array &$params): ?string
 {
     if ($value === '') return null;
+    if (strtolower($op) === 'contains') {
+        $tokens = search_tokenize($value);
+        if ($tokens === []) return null;
+        $parts = [];
+        foreach ($tokens as $tok) {
+            $pattern  = '%' . $tok['value'] . '%';
+            $parts[]  = 'author LIKE ?';
+            $params[] = $pattern;
+        }
+        return '(' . implode(' AND ', $parts) . ')';
+    }
     $info = buildPattern($value, $op);
     $params[] = $info['pattern'];
     return $info['use_like'] ? 'author LIKE ?' : 'author = ?';
@@ -130,6 +141,17 @@ function buildAuthorCondition(string $value, string $op, array &$params): ?strin
 function buildSubjectCondition(string $value, string $op, array &$params): ?string
 {
     if ($value === '') return null;
+    if (strtolower($op) === 'contains') {
+        $tokens = search_tokenize($value);
+        if ($tokens === []) return null;
+        $parts = [];
+        foreach ($tokens as $tok) {
+            $pattern = '%' . $tok['value'] . '%';
+            $parts[] = "(topic1 LIKE ? OR topic2 LIKE ? OR topic3 LIKE ? OR topic4 LIKE ? OR topic5 LIKE ?)";
+            for ($i = 0; $i < 5; $i++) $params[] = $pattern;
+        }
+        return '(' . implode(' AND ', $parts) . ')';
+    }
     $info = buildPattern($value, $op);
     $op_  = $info['use_like'] ? 'LIKE' : '=';
     $sql  = "(topic1 $op_ ? OR topic2 $op_ ? OR topic3 $op_ ? OR topic4 $op_ ? OR topic5 $op_ ?)";
@@ -389,6 +411,8 @@ if ($whereSql !== '') {
                     <div class="adv-add-row">
                         <button type="button" id="adv-add-row" class="btn-add-row">+ Aggiungi riga di ricerca</button>
                     </div>
+
+                    <p class="search-tip">Virgolette per frase esatta: <code>"guerra partigiana"</code></p>
 
                     <div class="search-actions">
                         <button type="submit" class="btn-primary btn-primary-cta">Cerca</button>

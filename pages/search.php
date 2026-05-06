@@ -118,9 +118,9 @@ $whereParts = [];
 $params     = [];
 
 if ($q !== '') {
-    $terms = array_values(array_filter(preg_split('/\s+/', $q) ?: [], fn($t) => trim($t) !== ''));
-    foreach ($terms as $term) {
-        $pattern  = '%' . $term . '%';
+    $tokens = search_tokenize($q);
+    foreach ($tokens as $tok) {
+        $pattern  = '%' . $tok['value'] . '%';
         $subParts = [];
         foreach (['b.title', 'b.title_remainder', 'b.author', 'b.topic1', 'b.topic2', 'b.topic3', 'b.topic4', 'b.topic5'] as $col) {
             $subParts[] = "$col LIKE ?";
@@ -265,6 +265,7 @@ $queryBase = [
 
         <div class="search-form-simple-links">
             <a href="index.php?page=search_advanced">Ricerca avanzata →</a>
+            <span class="search-tip">Virgolette per frase esatta: <code>"guerra partigiana"</code></span>
         </div>
     </form>
 

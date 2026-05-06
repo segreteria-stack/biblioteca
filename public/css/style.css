@@ -3973,3 +3973,18 @@ input[type="submit"] {
   color: #d1d5db;
   flex-shrink: 0;
 }
+
+/* Suggerimento ricerca con virgolette */
+.search-tip {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin-top: 0.35rem;
+}
+.search-tip code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #f3f4f6;
+  border-radius: 3px;
+  padding: 0.1em 0.35em;
+  font-size: 0.9em;
+  color: #374151;
+}
