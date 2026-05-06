@@ -42,6 +42,7 @@ function home_fetch_carousel_items(PDO $pdo, int $maxItems = 8): array
                     LIMIT 1
                 ) AS isbn
             FROM biblio b
+            WHERE b.opac_flg = \'Y\'
             ORDER BY b.bibid DESC
             LIMIT ' . (int) $maxItems . '
         ';
@@ -95,25 +96,25 @@ $gbApiKey = $GLOBALS['cfg']['google_books']['api_key'] ?? '';
 // Contatore titoli in catalogo
 $totalTitoli = 0;
 try {
-    $totalTitoli = (int)$pdo->query('SELECT COUNT(*) FROM biblio')->fetchColumn();
+    $totalTitoli = (int)$pdo->query("SELECT COUNT(*) FROM biblio WHERE opac_flg = 'Y'")->fetchColumn();
 } catch (\PDOException $e) {}
 
 // Top 12 soggetti per la sezione "Esplora per tema"
 $topTopics = [];
 try {
-    $sqlTopics = '
+    $sqlTopics = "
         SELECT topic, COUNT(*) AS cnt
         FROM (
-            SELECT topic1 AS topic FROM biblio WHERE topic1 <> \'\'
-            UNION ALL SELECT topic2 FROM biblio WHERE topic2 <> \'\'
-            UNION ALL SELECT topic3 FROM biblio WHERE topic3 <> \'\'
-            UNION ALL SELECT topic4 FROM biblio WHERE topic4 <> \'\'
-            UNION ALL SELECT topic5 FROM biblio WHERE topic5 <> \'\'
+            SELECT topic1 AS topic FROM biblio WHERE opac_flg = 'Y' AND topic1 <> ''
+            UNION ALL SELECT topic2 FROM biblio WHERE opac_flg = 'Y' AND topic2 <> ''
+            UNION ALL SELECT topic3 FROM biblio WHERE opac_flg = 'Y' AND topic3 <> ''
+            UNION ALL SELECT topic4 FROM biblio WHERE opac_flg = 'Y' AND topic4 <> ''
+            UNION ALL SELECT topic5 FROM biblio WHERE opac_flg = 'Y' AND topic5 <> ''
         ) t
         GROUP BY topic
         ORDER BY cnt DESC
         LIMIT 14
-    ';
+    ";
     $topTopics = $pdo->query($sqlTopics)->fetchAll(PDO::FETCH_ASSOC) ?: [];
 } catch (\PDOException $e) {}
 ?>
@@ -195,7 +196,7 @@ try {
                 <?php foreach ($topTopics as $t): ?>
                     <a
                         class="home-topic-chip"
-                        href="<?= h($baseUrl) ?>/index.php?page=search&amp;q=<?= urlencode((string)$t['topic']) ?>"
+                        href="<?= h($baseUrl) ?>/index.php?page=search&amp;subject=<?= urlencode((string)$t['topic']) ?>"
                     ><?= h((string)$t['topic']) ?> <span class="home-topic-chip-count"><?= (int)$t['cnt'] ?></span></a>
                 <?php endforeach; ?>
             </div>

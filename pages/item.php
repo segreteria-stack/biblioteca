@@ -81,7 +81,7 @@ function fetchBiblioRecord(PDO $pdo, int $bibid): ?array
         FROM biblio b
         LEFT JOIN material_type_dm mt ON mt.code = b.material_cd
         LEFT JOIN collection_dm     cd ON cd.code = b.collection_cd
-        WHERE b.bibid = :bibid LIMIT 1
+        WHERE b.bibid = :bibid AND b.opac_flg = \'Y\' LIMIT 1
     ';
     $stmt = $pdo->prepare($sql);
     $stmt->bindValue(':bibid', $bibid, PDO::PARAM_INT);
