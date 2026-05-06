@@ -111,7 +111,7 @@ if (!empty($_SESSION['patron']) && is_array($_SESSION['patron'])) {
                                 </a>
                             </li>
                             <li>
-                                <a href="<?= htmlspecialchars($base, ENT_QUOTES) ?>/index.php?page=privacy">
+                                <a href="https://www.anpiudine.org/privacy-policy/" target="_blank" rel="noopener">
                                     Privacy Policy
                                 </a>
                             </li>

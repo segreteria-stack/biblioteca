@@ -133,6 +133,8 @@ $allowedTabs = [
     'popular_titles'  => 'Titoli più prestati',
     'popular_authors' => 'Autori più prestati',
     'acquisitions'    => 'Acquisizioni',
+    'orphan_titles'   => 'Senza collocazione',
+    'duplicates'      => 'Duplicati potenziali',
 ];
 if (!array_key_exists($tab, $allowedTabs)) $tab = 'checkouts';
 
@@ -192,6 +194,8 @@ function order_by_for(string $tab, string $sort, string $dir): string
         'popular_titles'  => ['count' => 'cnt', 'title' => 'b.title'],
         'popular_authors' => ['count' => 'cnt', 'author' => 'author'],
         'acquisitions'    => ['date' => 'b.create_dt', 'call' => 'b.call_nmbr1', 'title' => 'b.title'],
+        'orphan_titles'   => ['title' => 'b.title', 'date' => 'b.create_dt', 'copies' => 'copy_count'],
+        'duplicates'      => [],
     ];
     $m = $maps[$tab] ?? [];
     if ($sort === '' || !isset($m[$sort])) {
@@ -200,6 +204,7 @@ function order_by_for(string $tab, string $sort, string $dir): string
             'popular_titles'       => 'ORDER BY cnt DESC, b.title ASC',
             'popular_authors'      => 'ORDER BY cnt DESC, author ASC',
             'acquisitions'         => 'ORDER BY b.create_dt DESC, b.title ASC',
+            'orphan_titles'        => 'ORDER BY b.create_dt DESC, b.title ASC',
             default                => 'ORDER BY 1',
         };
     }
@@ -213,6 +218,8 @@ $title     = $allowedTabs[$tab];
 $error     = '';
 $totalRows = 0;
 $dataRows  = [];
+$dupIsbn        = [];
+$dupTitleAuthor = [];
 $csvHeader = [];
 $csvRows   = [];
 
@@ -339,6 +346,76 @@ try {
             foreach ($dataRows as $r) $csvRows[] = [(string)($r['create_dt'] ?? ''), build_callno($r), (string)($r['title'] ?? ''), (string)($r['author'] ?? ''), (string)($r['bibid'] ?? '')];
             csv_out('acquisizioni_' . date('Ymd_His') . '.csv', $csvHeader, $csvRows);
         }
+
+    } elseif ($tab === 'orphan_titles') {
+        $where  = "(b.call_nmbr1 IS NULL OR TRIM(b.call_nmbr1) = '')";
+        $params = [];
+        if ($q !== '') { $where .= " AND (b.title LIKE :q OR b.author LIKE :q)"; $params[':q'] = '%' . $q . '%'; }
+
+        $st = $db->prepare("SELECT COUNT(*) AS cnt FROM biblio b WHERE $where");
+        $st->execute($params);
+        $totalRows = (int)($st->fetch(PDO::FETCH_ASSOC)['cnt'] ?? 0);
+
+        $orderBy = order_by_for($tab, $sort, strtoupper($dir));
+        $sqlData = "
+            SELECT b.bibid, b.title, b.author, b.create_dt, b.opac_flg,
+                   COUNT(bc.copyid) AS copy_count
+            FROM biblio b
+            LEFT JOIN biblio_copy bc ON bc.bibid = b.bibid
+            WHERE $where
+            GROUP BY b.bibid, b.title, b.author, b.create_dt, b.opac_flg
+            $orderBy";
+        $limit = $print ? $limitPrint : ($export ? $limitExport : $limitNormal);
+        if (!$print && !$export) $sqlData .= " LIMIT :lim OFFSET :off";
+        else $sqlData .= " LIMIT " . (int)$limit;
+
+        $st = $db->prepare($sqlData);
+        foreach ($params as $k => $v) $st->bindValue($k, $v, PDO::PARAM_STR);
+        if (!$print && !$export) { $st->bindValue(':lim', $limit, PDO::PARAM_INT); $st->bindValue(':off', $offset, PDO::PARAM_INT); }
+        $st->execute();
+        $dataRows = $st->fetchAll(PDO::FETCH_ASSOC);
+
+        if ($export) {
+            $csvHeader = ['BIBID', 'Titolo', 'Autore', 'Copie', 'OPAC', 'Data creazione'];
+            foreach ($dataRows as $r) $csvRows[] = [
+                (string)($r['bibid'] ?? ''), (string)($r['title'] ?? ''), (string)($r['author'] ?? ''),
+                (string)($r['copy_count'] ?? '0'), (string)($r['opac_flg'] ?? ''), (string)($r['create_dt'] ?? ''),
+            ];
+            csv_out('titoli_senza_collocazione_' . date('Ymd_His') . '.csv', $csvHeader, $csvRows);
+        }
+
+    } elseif ($tab === 'duplicates') {
+        // ISBN duplicates: multiple biblio records sharing the same 020$a value
+        $stDupIsbn = $db->query("
+            SELECT bf.field_data AS isbn,
+                   COUNT(DISTINCT bf.bibid) AS cnt,
+                   GROUP_CONCAT(DISTINCT bf.bibid ORDER BY bf.bibid SEPARATOR ',') AS bibids
+            FROM biblio_field bf
+            JOIN biblio b ON b.bibid = bf.bibid
+            WHERE bf.tag = 20 AND bf.subfield_cd = 'a'
+              AND bf.field_data IS NOT NULL AND TRIM(bf.field_data) != ''
+            GROUP BY bf.field_data
+            HAVING cnt > 1
+            ORDER BY cnt DESC, bf.field_data
+            LIMIT 200
+        ");
+        $dupIsbn = $stDupIsbn->fetchAll(PDO::FETCH_ASSOC);
+
+        // Title+author duplicates
+        $stDupTA = $db->query("
+            SELECT MIN(b.title) AS title, MIN(b.author) AS author,
+                   COUNT(*) AS cnt,
+                   GROUP_CONCAT(b.bibid ORDER BY b.bibid SEPARATOR ',') AS bibids
+            FROM biblio b
+            WHERE b.title IS NOT NULL AND TRIM(b.title) != ''
+            GROUP BY LOWER(TRIM(b.title)), LOWER(TRIM(COALESCE(b.author, '')))
+            HAVING cnt > 1
+            ORDER BY cnt DESC, title
+            LIMIT 200
+        ");
+        $dupTitleAuthor = $stDupTA->fetchAll(PDO::FETCH_ASSOC);
+
+        $totalRows = count($dupIsbn) + count($dupTitleAuthor);
     }
 } catch (Throwable $e) {
     $error = $e->getMessage();
@@ -548,7 +625,13 @@ if ($dateFrom !== '' || $dateTo !== '') {
         <?php endforeach; ?>
       </div>
 
-      <form method="get" action="<?= hstr($indexUrl) ?>" class="reports-no-print">
+      <?php if ($tab === 'duplicates'): ?>
+        <p class="reports-meta" style="margin:10px 0;">
+          Mostra titoli con stesso ISBN (campo 020$a) o stessa combinazione Titolo+Autore. Limite 200 gruppi per sezione.
+        </p>
+      <?php endif; ?>
+
+      <form method="get" action="<?= hstr($indexUrl) ?>" class="reports-no-print" <?= $tab === 'duplicates' ? 'style="display:none"' : '' ?>>
         <input type="hidden" name="page" value="admin_reports">
         <input type="hidden" name="tab" value="<?= hstr($tab) ?>">
         <div class="reports-panel">
@@ -564,6 +647,9 @@ if ($dateFrom !== '' || $dateTo !== '') {
             <input type="hidden" name="from" value="">
             <input type="hidden" name="to" value="">
           <?php endif; ?>
+          <?php if ($tab === 'duplicates'): ?>
+            <input type="hidden" name="q" value="">
+          <?php endif; ?>
 
           <?php
             $sortOptions = match ($tab) {
@@ -571,6 +657,7 @@ if ($dateFrom !== '' || $dateTo !== '') {
               'popular_titles'       => ['count'=>'Prestiti','title'=>'Titolo'],
               'popular_authors'      => ['count'=>'Prestiti','author'=>'Autore'],
               'acquisitions'         => ['date'=>'Data creazione','call'=>'Collocazione','title'=>'Titolo'],
+              'orphan_titles'        => ['title'=>'Titolo','date'=>'Data creazione','copies'=>'Copie'],
               default                => []
             };
           ?>
@@ -593,7 +680,7 @@ if ($dateFrom !== '' || $dateTo !== '') {
             </div>
           <?php endif; ?>
 
-          <?php if (!$print && !$export && in_array($tab, ['checkouts','overdue','acquisitions'], true)): ?>
+          <?php if (!$print && !$export && in_array($tab, ['checkouts','overdue','acquisitions','orphan_titles'], true)): ?>
             <div class="field">
               <label>Per pagina</label>
               <select class="input" name="pp">
@@ -631,6 +718,10 @@ if ($dateFrom !== '' || $dateTo !== '') {
         } elseif ($tab === 'acquisitions') {
             $thead = ['Data','Collocazione','Titolo / Autore','BIBID'];
             $tableClass = 'reports-table--acq';
+        } elseif ($tab === 'orphan_titles') {
+            $thead = ['BIBID','Titolo / Autore','Copie','OPAC','Inserito'];
+        } elseif ($tab === 'duplicates') {
+            $thead = [];
         }
       ?>
 
@@ -643,7 +734,7 @@ if ($dateFrom !== '' || $dateTo !== '') {
         <?php if ($periodLabel !== ''): ?> — periodo: <?= hstr($periodLabel) ?><?php endif; ?>
       </div>
 
-      <div class="reports-table-wrap">
+      <div class="reports-table-wrap" <?= $tab === 'duplicates' ? 'style="display:none"' : '' ?>>
         <table class="reports-table <?= hstr($tableClass) ?>">
           <thead>
             <tr><?php foreach ($thead as $th): ?><th><?= hstr($th) ?></th><?php endforeach; ?></tr>
@@ -748,13 +839,73 @@ if ($dateFrom !== '' || $dateTo !== '') {
                 </tr>
                 <?php $rowInPage++; ?>
               <?php endforeach; ?>
+            <?php elseif ($tab === 'orphan_titles'): ?>
+              <?php foreach ($dataRows as $r): ?>
+                <?php if ($print && $rowInPage > 0 && $rowInPage % $printRowsPerPage === 0) $openNewPrintPage(); ?>
+                <?php
+                  $isPublic = ($r['opac_flg'] ?? '') === 'Y';
+                  $editUrl  = $indexUrl . '?page=staff_catalog_edit&bibid=' . (int)($r['bibid'] ?? 0);
+                ?>
+                <tr>
+                  <td>
+                    <a href="<?= hstr($editUrl) ?>" style="font-weight:600;"><?= hstr($r['bibid'] ?? '') ?></a>
+                  </td>
+                  <td>
+                    <div style="font-weight:600;"><?= hstr($r['title'] ?? '') ?></div>
+                    <div class="muted"><?= hstr($r['author'] ?? '') ?></div>
+                  </td>
+                  <td><?= (int)($r['copy_count'] ?? 0) === 0 ? '<span class="reports-badge reports-badge--overdue">0</span>' : hstr($r['copy_count']) ?></td>
+                  <td><?= $isPublic ? 'Sì' : '<span class="reports-badge reports-badge--overdue">No</span>' ?></td>
+                  <td><?= hstr(fmt_date_it((string)($r['create_dt'] ?? ''))) ?></td>
+                </tr>
+                <?php $rowInPage++; ?>
+              <?php endforeach; ?>
+
+            <?php elseif ($tab === 'duplicates'): ?>
             <?php endif; ?>
           <?php endif; ?>
           </tbody>
         </table>
       </div>
 
-      <?php if (!$print && !$export && $totalPages > 1 && in_array($tab, ['checkouts','overdue','acquisitions'], true)): ?>
+      <?php if ($tab === 'duplicates' && !$export): ?>
+        <?php
+          function render_dup_table(array $rows, string $title, string $keyLabel, string $keyField, string $editUrl): void {
+              if (empty($rows)) {
+                  echo '<p class="staff-card-note" style="margin-top:12px;">Nessun duplicato trovato per: <strong>' . h($title) . '</strong>.</p>';
+                  return;
+              }
+              echo '<h3 style="margin:16px 0 6px;font-size:.95rem;">' . h($title) . ' — ' . count($rows) . ' gruppi</h3>';
+              echo '<div class="reports-table-wrap" style="margin-bottom:16px;"><table class="reports-table"><thead><tr>';
+              echo '<th style="width:10%;">Copie</th><th style="width:35%;">' . h($keyLabel) . '</th><th>Titolo</th><th>BIBID nel gruppo</th>';
+              echo '</tr></thead><tbody>';
+              foreach ($rows as $r) {
+                  $cnt    = (int)($r['cnt'] ?? 0);
+                  $key    = trim((string)($r[$keyField] ?? ''));
+                  $title2 = trim((string)($r['title'] ?? $key));
+                  $author = trim((string)($r['author'] ?? ''));
+                  $bibids = array_map('intval', explode(',', (string)($r['bibids'] ?? '')));
+                  echo '<tr>';
+                  echo '<td><span class="reports-badge reports-badge--overdue">' . $cnt . '</span></td>';
+                  echo '<td style="font-weight:600;">' . h($key) . '</td>';
+                  echo '<td><div style="font-weight:600;">' . h($title2) . '</div>';
+                  if ($author !== '') echo '<div class="muted">' . h($author) . '</div>';
+                  echo '</td>';
+                  echo '<td>';
+                  foreach ($bibids as $bid) {
+                      echo '<a href="' . h($editUrl . $bid) . '" style="margin-right:6px;font-weight:600;">' . (int)$bid . '</a>';
+                  }
+                  echo '</td></tr>';
+              }
+              echo '</tbody></table></div>';
+          }
+          $editBase = $indexUrl . '?page=staff_catalog_edit&bibid=';
+          render_dup_table($dupIsbn,        'Duplicati per ISBN',         'ISBN (020$a)', 'isbn',  $editBase);
+          render_dup_table($dupTitleAuthor, 'Duplicati per Titolo+Autore','Autore',       'author',$editBase);
+        ?>
+      <?php endif; ?>
+
+      <?php if (!$print && !$export && $totalPages > 1 && in_array($tab, ['checkouts','overdue','acquisitions','orphan_titles'], true)): ?>
         <div class="reports-footerbar reports-no-print">
           <div class="reports-meta">Pagina <?= (int)$page ?> di <?= (int)$totalPages ?></div>
           <div class="reports-actions">
@@ -766,7 +917,7 @@ if ($dateFrom !== '' || $dateTo !== '') {
 
       <p class="staff-card-note reports-no-print" style="margin-top:10px;">
         PDF: usa "Stampa / PDF" e seleziona "Salva come PDF".
-        CSV: usa "Export CSV".
+        CSV: usa "Export CSV" (disponibile per Prestiti, Acquisizioni, Senza collocazione).
         Prestiti attivi: stato copia <code><?= h(COPY_STATUS_OUT) ?></code>.
       </p>
     </section>
