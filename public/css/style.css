@@ -1402,32 +1402,27 @@ input[type="submit"] {
   .page-section--home {
     display: grid;
     grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr);
-    grid-template-areas:
-      "hero hero"
-      "search info"
-      "highlight info";
     column-gap: 2rem;
-    row-gap: 1.75rem;
+    align-items: start;
   }
 
+  /* Header di stato: riga intera */
   .home-hero {
-    grid-area: hero;
+    grid-column: 1 / -1;
     margin-bottom: 0.25rem;
   }
 
-  .home-search {
-    grid-area: search;
-    margin-top: 0.75rem;
-    margin-bottom: 0.75rem;
-  }
-
+  /* Colonna destra: info biblioteca, fissa dalla riga 2 in giù */
   .home-info {
-    grid-area: info;
+    grid-column: 2;
+    grid-row: 2 / span 10;
     margin-top: 0.75rem;
   }
 
-  .home-highlight {
-    grid-area: highlight;
+  /* Tutto il resto scorre in colonna 1 (topics, libri, donazioni…) */
+  .home-highlight,
+  .home-donazioni-callout {
+    grid-column: 1;
     margin-top: 0.75rem;
   }
 }
@@ -3825,13 +3820,15 @@ input[type="submit"] {
   margin-bottom: 2.25rem;
 }
 
-/* Titolo sezione con link "→ Tutti i temi" allineato a destra */
+/* Titolo sezione: flex per allineare il link "→ Tutti i temi" a destra */
 .home-highlight-title {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
 }
 
 .home-highlight-more {
