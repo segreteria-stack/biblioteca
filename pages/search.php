@@ -148,7 +148,7 @@ if ($subject !== '') {
     }
 }
 
-$whereSql = $whereParts !== [] ? 'WHERE ' . implode(' AND ', $whereParts) : '';
+$whereSql = 'WHERE b.opac_flg = \'Y\'' . ($whereParts !== [] ? ' AND ' . implode(' AND ', $whereParts) : '');
 
 $orderBySql = match($sort) {
     'title_desc'  => 'ORDER BY b.title DESC',
@@ -172,7 +172,7 @@ $availabilityMap = [];
 $alreadyHeldMap  = [];
 $gbApiKey        = $GLOBALS['cfg']['google_books']['api_key'] ?? '';
 
-if ($hasSearch && $whereSql !== '') {
+if ($hasSearch) {
     try {
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM biblio b $whereSql");
         $stmt->execute($params);
@@ -258,6 +258,7 @@ $queryBase = [
                 value="<?= h($q !== '' ? $q : $subject) ?>"
                 placeholder="Titolo, autore, soggetto, parole chiave…"
                 autocomplete="off"
+                data-autocomplete="1"
             >
             <button type="submit" class="btn-primary">Cerca</button>
         </div>

@@ -155,6 +155,8 @@ try {
                         name="q"
                         value="<?= h((string) ($_GET['q'] ?? '')) ?>"
                         placeholder="Titolo, autore, soggetto…"
+                        autocomplete="off"
+                        data-autocomplete="1"
                         autofocus
                     >
                     <button type="submit" class="btn-primary">

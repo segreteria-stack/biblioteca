@@ -160,5 +160,122 @@ if (!empty($_SESSION['patron']) && is_array($_SESSION['patron'])) {
             </div><!-- /.site-footer-inner -->
         </div><!-- /.container -->
     </footer>
+
+<script>
+/* Autocomplete per tutti gli input con data-autocomplete="1" */
+(function () {
+  'use strict';
+
+  const BASE = <?= json_encode(rtrim((string)$base, '/')) ?>;
+
+  function escHtml(s) {
+    return s.replace(/[&<>"']/g, function(c) {
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  function initAc(input) {
+    // Wrap the input in .ac-wrap (only if not already done)
+    let wrap = input.parentElement;
+    if (!wrap.classList.contains('ac-wrap')) {
+      wrap = document.createElement('div');
+      wrap.className = 'ac-wrap';
+      input.parentNode.insertBefore(wrap, input);
+      wrap.appendChild(input);
+    }
+
+    let dropdown = null;
+    let timer    = null;
+    let active   = -1;
+    let current  = [];
+
+    function items() { return dropdown ? Array.from(dropdown.querySelectorAll('.ac-item')) : []; }
+
+    function setActive(i) {
+      items().forEach(function(el, idx) { el.classList.toggle('ac-active', idx === i); });
+      active = i;
+    }
+
+    function close() {
+      if (dropdown) { dropdown.remove(); dropdown = null; active = -1; current = []; }
+    }
+
+    function render(list) {
+      close();
+      if (!list || list.length === 0) return;
+      const ICONS  = { title: '📖', author: '✍️', topic: '🏷️' };
+      const LABELS = { title: 'Titolo', author: 'Autore', topic: 'Soggetto' };
+      dropdown = document.createElement('ul');
+      dropdown.className = 'ac-dropdown';
+      dropdown.setAttribute('role', 'listbox');
+      list.forEach(function(s) {
+        const li = document.createElement('li');
+        li.className = 'ac-item';
+        li.setAttribute('role', 'option');
+        li.innerHTML =
+          '<span class="ac-item-icon">' + (ICONS[s.type] || '📄') + '</span>' +
+          '<span class="ac-item-body">' +
+            '<span class="ac-item-label">' + escHtml(s.label) + '</span>' +
+            (s.sub ? '<span class="ac-item-sub">' + escHtml(s.sub) + '</span>' : '') +
+          '</span>' +
+          '<span class="ac-item-type">' + escHtml(LABELS[s.type] || '') + '</span>';
+        li.addEventListener('mousedown', function(e) {
+          e.preventDefault();
+          pick(s);
+        });
+        dropdown.appendChild(li);
+      });
+      current = list;
+      wrap.appendChild(dropdown);
+    }
+
+    function pick(s) {
+      if (s.type === 'title') {
+        window.location.href = s.url;
+      } else {
+        input.value = s.label;
+        close();
+        if (input.form) input.form.submit();
+      }
+    }
+
+    function doFetch(q) {
+      fetch(BASE + '/ajax_autocomplete.php?q=' + encodeURIComponent(q), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(d) { if (d.ok) render(d.suggestions); })
+      .catch(function() {});
+    }
+
+    input.addEventListener('input', function() {
+      clearTimeout(timer);
+      var q = input.value.trim();
+      if (q.length < 2) { close(); return; }
+      timer = setTimeout(function() { doFetch(q); }, 280);
+    });
+
+    input.addEventListener('keydown', function(e) {
+      var list = items();
+      if (!dropdown || list.length === 0) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault(); setActive(Math.min(active + 1, list.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault(); setActive(Math.max(active - 1, 0));
+      } else if (e.key === 'Enter' && active >= 0) {
+        e.preventDefault(); pick(current[active]);
+      } else if (e.key === 'Escape') {
+        close();
+      }
+    });
+
+    document.addEventListener('click', function(e) {
+      if (!wrap.contains(e.target)) close();
+    });
+  }
+
+  document.querySelectorAll('input[data-autocomplete]').forEach(initAc);
+}());
+</script>
 </body>
 </html>

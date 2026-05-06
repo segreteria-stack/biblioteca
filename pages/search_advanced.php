@@ -271,7 +271,7 @@ if ($clauses !== []) {
             $parts[]   = $connector . ' ' . $clause['sql'];
         }
     }
-    $whereSql = 'WHERE ' . implode(' ', $parts);
+    $whereSql = "WHERE biblio.opac_flg = 'Y' AND (" . implode(' ', $parts) . ')';
 }
 
 // -----------------------------------------------------------------------------
