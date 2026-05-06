@@ -470,6 +470,10 @@ input[type="submit"] {
 }
 
 /* CAMPO VALORE: largo e leggibile */
+.adv-cell-value {
+  position: relative;
+}
+
 .adv-cell-value input[type="text"] {
   width: 100%;
   padding: 0.55rem 0.75rem;
@@ -484,6 +488,48 @@ input[type="submit"] {
   outline: none;
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px rgba(225, 30, 40, 0.1);
+}
+
+/* Dropdown autocomplete suggerimenti */
+.adv-suggest-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 100%;
+  max-width: min(480px, 90vw);
+  z-index: 300;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  max-height: 260px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.adv-suggest-list li {
+  padding: 0.5rem 0.85rem;
+  font-size: 0.92rem;
+  color: #1f2937;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid #f3f4f6;
+  transition: background 0.1s, color 0.1s;
+}
+
+.adv-suggest-list li:last-child {
+  border-bottom: none;
+}
+
+.adv-suggest-list li:hover,
+.adv-suggest-list li[aria-selected="true"] {
+  background: #fef2f2;
+  color: var(--color-primary);
 }
 
 /* Bool disabilitato */

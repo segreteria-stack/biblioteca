@@ -720,6 +720,148 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
+<script>
+(function () {
+    const container = document.getElementById('adv-rows');
+    if (!container) return;
+
+    const SUGGEST_URL = 'ajax_suggest.php';
+    const DEBOUNCE_MS = 280;
+    const MIN_CHARS   = 2;
+
+    // WeakSet to avoid double-attaching to the same DOM node
+    const attached = new WeakSet();
+
+    function getField(input) {
+        const row = input.closest('.adv-row');
+        if (!row) return 'title';
+        const sel = row.querySelector('.adv-field');
+        return (sel && sel.value) ? sel.value : 'title';
+    }
+
+    function closeAllDropdowns() {
+        container.querySelectorAll('.adv-suggest-list').forEach(ul => ul.remove());
+    }
+
+    function buildDropdown(input, items) {
+        const cell = input.closest('.adv-cell-value');
+        if (!cell) return;
+
+        // Remove any existing list in this cell
+        cell.querySelectorAll('.adv-suggest-list').forEach(ul => ul.remove());
+        if (items.length === 0) return;
+
+        const ul = document.createElement('ul');
+        ul.className = 'adv-suggest-list';
+        ul.setAttribute('role', 'listbox');
+
+        items.forEach(text => {
+            const li = document.createElement('li');
+            li.textContent = text;
+            li.setAttribute('role', 'option');
+            li.setAttribute('aria-selected', 'false');
+            li.addEventListener('mousedown', e => {
+                e.preventDefault(); // keep focus on input
+                input.value = text;
+                ul.remove();
+                input.focus();
+            });
+            ul.appendChild(li);
+        });
+
+        cell.appendChild(ul);
+    }
+
+    function getActiveItem(input) {
+        const cell = input.closest('.adv-cell-value');
+        if (!cell) return null;
+        return cell.querySelector('.adv-suggest-list [aria-selected="true"]');
+    }
+
+    function getList(input) {
+        const cell = input.closest('.adv-cell-value');
+        return cell ? cell.querySelector('.adv-suggest-list') : null;
+    }
+
+    function moveCursor(input, direction) {
+        const ul = getList(input);
+        if (!ul) return;
+        const items  = Array.from(ul.querySelectorAll('li'));
+        const active = ul.querySelector('[aria-selected="true"]');
+        let idx = active ? items.indexOf(active) : -1;
+
+        if (active) active.setAttribute('aria-selected', 'false');
+        if (direction === 'down') idx = (idx + 1) % items.length;
+        else                      idx = idx <= 0 ? items.length - 1 : idx - 1;
+
+        items[idx].setAttribute('aria-selected', 'true');
+        items[idx].scrollIntoView({ block: 'nearest' });
+    }
+
+    function attachToInput(input) {
+        if (attached.has(input)) return;
+        attached.add(input);
+
+        let debounceTimer = null;
+        let abortCtrl    = null;
+
+        input.addEventListener('input', function () {
+            clearTimeout(debounceTimer);
+            const q = this.value.trim();
+            if (q.length < MIN_CHARS) { closeAllDropdowns(); return; }
+
+            debounceTimer = setTimeout(() => {
+                const field = getField(input);
+                if (abortCtrl) abortCtrl.abort();
+                abortCtrl = new AbortController();
+                fetch(SUGGEST_URL + '?field=' + encodeURIComponent(field) + '&q=' + encodeURIComponent(q), {
+                    signal: abortCtrl.signal
+                })
+                .then(r => r.ok ? r.json() : [])
+                .then(items => { if (Array.isArray(items)) buildDropdown(input, items); })
+                .catch(() => {});
+            }, DEBOUNCE_MS);
+        });
+
+        input.addEventListener('keydown', function (e) {
+            const ul = getList(input);
+            if (!ul) return;
+
+            if (e.key === 'ArrowDown')  { e.preventDefault(); moveCursor(input, 'down'); }
+            else if (e.key === 'ArrowUp')   { e.preventDefault(); moveCursor(input, 'up'); }
+            else if (e.key === 'Enter') {
+                const active = getActiveItem(input);
+                if (active) { e.preventDefault(); input.value = active.textContent; ul.remove(); }
+            } else if (e.key === 'Escape') {
+                ul.remove();
+            }
+        });
+
+        input.addEventListener('blur', function () {
+            setTimeout(() => { const ul = getList(input); if (ul) ul.remove(); }, 150);
+        });
+    }
+
+    // Attach to all existing value inputs
+    container.querySelectorAll('.adv-cell-value input[type="text"]').forEach(attachToInput);
+
+    // When a new row is cloned, attach to the new input
+    const addBtn = document.getElementById('adv-add-row');
+    if (addBtn) {
+        addBtn.addEventListener('click', function () {
+            requestAnimationFrame(() => {
+                container.querySelectorAll('.adv-cell-value input[type="text"]').forEach(attachToInput);
+            });
+        });
+    }
+
+    // Close dropdowns on outside click
+    document.addEventListener('click', function (e) {
+        if (!e.target.closest('.adv-cell-value')) closeAllDropdowns();
+    });
+})();
+</script>
+
 <?php if (!empty($gbApiKey)): ?>
 <script>
 (function () {
