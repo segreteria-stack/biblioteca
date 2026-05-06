@@ -390,29 +390,29 @@ $queryBase = [
                         if ($tv !== '') $tags[] = $tv;
                     }
                     try {
-                        $stmtSub = $pdo->prepare('SELECT tag, subfield_cd, field_data FROM biblio_field WHERE bibid = :bibid AND tag BETWEEN 600 AND 699 ORDER BY tag, fieldid');
+                        $stmtSub = $pdo->prepare('SELECT fieldid, tag, subfield_cd, field_data FROM biblio_field WHERE bibid = :bibid AND tag BETWEEN 600 AND 699 ORDER BY tag, fieldid');
                         $stmtSub->execute([':bibid' => $bibid]);
-                        $rowsSub      = $stmtSub->fetchAll(PDO::FETCH_ASSOC);
-                        $currentTag   = null;
-                        $currentParts = [];
-                        $marcSubjects = [];
+                        $rowsSub         = $stmtSub->fetchAll(PDO::FETCH_ASSOC);
+                        $currentFieldid  = null;
+                        $currentParts    = [];
+                        $marcSubjects    = [];
                         foreach ($rowsSub as $subRow) {
-                            $tag  = (int)($subRow['tag'] ?? 0);
-                            $code = (string)($subRow['subfield_cd'] ?? '');
-                            $data = trim((string)($subRow['field_data'] ?? ''));
+                            $fieldid = (int)($subRow['fieldid'] ?? 0);
+                            $code    = (string)($subRow['subfield_cd'] ?? '');
+                            $data    = trim((string)($subRow['field_data'] ?? ''));
                             if (in_array($code, ['a','x','y','z'], true)) {
-                                if ($currentTag !== null && $tag !== $currentTag && $currentParts !== []) {
+                                if ($currentFieldid !== null && $fieldid !== $currentFieldid && $currentParts !== []) {
                                     $marcSubjects[] = implode(' -- ', $currentParts);
                                     $currentParts   = [];
                                 }
-                                $currentTag = $tag;
+                                $currentFieldid = $fieldid;
                                 if ($data !== '') $currentParts[] = $data;
                                 continue;
                             }
                             if ($currentParts !== []) {
                                 $marcSubjects[] = implode(' -- ', $currentParts);
                                 $currentParts   = [];
-                                $currentTag     = null;
+                                $currentFieldid = null;
                             }
                         }
                         if ($currentParts !== []) $marcSubjects[] = implode(' -- ', $currentParts);

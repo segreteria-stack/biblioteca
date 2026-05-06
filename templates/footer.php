@@ -230,13 +230,7 @@ if (!empty($_SESSION['patron']) && is_array($_SESSION['patron'])) {
     }
 
     function pick(s) {
-      if (s.type === 'title') {
-        window.location.href = s.url;
-      } else {
-        input.value = s.label;
-        close();
-        if (input.form) input.form.submit();
-      }
+      window.location.href = s.url;
     }
 
     function doFetch(q) {
@@ -275,6 +269,7 @@ if (!empty($_SESSION['patron']) && is_array($_SESSION['patron'])) {
   }
 
   document.querySelectorAll('input[data-autocomplete]').forEach(initAc);
+  window._initAcInput = initAc;
 }());
 </script>
 </body>

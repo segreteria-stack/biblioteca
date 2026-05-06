@@ -399,7 +399,7 @@ if ($whereSql !== '') {
                                     </select>
                                 </div>
                                 <div class="adv-cell adv-cell-value">
-                                    <input type="text" name="value[]" value="<?= h($rowValue) ?>" placeholder="Inserisci il termine di ricerca">
+                                    <input type="text" name="value[]" value="<?= h($rowValue) ?>" placeholder="Inserisci il termine di ricerca" data-autocomplete="1" autocomplete="off">
                                 </div>
                                 <div class="adv-cell adv-cell-remove">
                                     <button type="button" class="adv-remove" aria-label="Rimuovi riga">×</button>
@@ -701,6 +701,7 @@ if ($whereSql !== '') {
         if (boolSelect) boolSelect.value = 'AND';
         container.appendChild(clone);
         updateRowStates();
+        if (input && window._initAcInput) window._initAcInput(input);
     });
 
     container.addEventListener('click', function (e) {
