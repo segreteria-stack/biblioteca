@@ -217,12 +217,13 @@ $totalTopics = count($frequencies);
         <ul class="topics-index-list">
             <?php foreach ($groupKeys as $key): ?>
                 <?php
-                $label = ($key === '#') ? '#' : $key;
-                $anchorId = 'topics-' . $label;
+                $label    = ($key === '#') ? '#' : $key;
+                $displayLabel = ($key === '#') ? 'Altro' : $key;
+                $anchorId = 'topics-' . $displayLabel;
                 ?>
                 <li class="topics-index-item">
                     <a href="#<?= h($anchorId) ?>" class="topics-index-link">
-                        <?= h($label) ?>
+                        <?= h($displayLabel) ?>
                     </a>
                 </li>
             <?php endforeach; ?>
