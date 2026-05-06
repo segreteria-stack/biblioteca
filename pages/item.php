@@ -440,7 +440,7 @@ try {
     }
 } catch (Throwable $e) { $alreadyHeld = false; }
 
-$hasTechData = ($collocation !== '' || $isbnDisplay !== '' || $oclcDisplay !== '' || !empty($marcExtra));
+$hasTechData = ($isbnDisplay !== '' || $oclcDisplay !== '' || !empty($marcExtra));
 
 $otherByAuthor   = [];
 $authorSearchUrl = '';
@@ -711,12 +711,6 @@ $needsCoverJs   = ($isbnForJs !== '' && $gbApiKey !== '' && !CoverService::hasLo
                 <section class="item-tech">
                     <h2>Dati tecnici</h2>
                     <dl class="item-meta">
-                        <?php if ($collocation !== ''): ?>
-                            <div class="item-meta-row">
-                                <dt>Collocazione fisica</dt>
-                                <dd><?= h($collocation) ?></dd>
-                            </div>
-                        <?php endif; ?>
                         <?php if ($isbnDisplay !== ''): ?>
                             <div class="item-meta-row">
                                 <dt>ISBN</dt>

@@ -336,6 +336,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = 'Record non valido.';
         } elseif (trim((string)($_POST['title'] ?? '')) === '') {
             $errors[] = 'Il titolo non può essere vuoto.';
+        } elseif ((int)($_POST['material_cd'] ?? 0) <= 0) {
+            $errors[] = 'Seleziona un Tipo di materiale valido.';
+        } elseif ((int)($_POST['collection_cd'] ?? 0) <= 0) {
+            $errors[] = 'Seleziona una Collezione valida.';
         } else {
             try {
                 $stmt = $pdo->prepare('
