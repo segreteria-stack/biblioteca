@@ -41,9 +41,15 @@ try {
     ");
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         foreach (['topic1', 'topic2', 'topic3', 'topic4', 'topic5'] as $col) {
-            $label = trim((string)($row[$col] ?? ''));
-            if ($label === '') continue;
-            $frequencies[$label] = ($frequencies[$label] ?? 0) + 1;
+            $raw = trim((string)($row[$col] ?? ''));
+            if ($raw === '') continue;
+            // Split on ; or | only — not on , to avoid breaking "Cognome, Nome"
+            $parts = preg_split('/\s*[;|]\s*/', $raw) ?: [$raw];
+            foreach ($parts as $part) {
+                $label = trim($part);
+                if ($label === '') continue;
+                $frequencies[$label] = ($frequencies[$label] ?? 0) + 1;
+            }
         }
     }
 } catch (PDOException $e) {
