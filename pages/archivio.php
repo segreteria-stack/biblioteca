@@ -76,16 +76,18 @@ $params     = [];
 
 if ($q !== '') {
     $whereParts[] = '('
-        . 'Busta LIKE :q OR '
-        . 'Fascicolo LIKE :q OR '
-        . 'Serie LIKE :q OR '
-        . 'Sottoserie LIKE :q OR '
-        . '`Titolo del fascicolo` LIKE :q OR '
-        . '`Descrizione documento` LIKE :q OR '
-        . '`Estremi cronologici` LIKE :q OR '
-        . 'Anno LIKE :q'
+        . 'Busta LIKE :q1 OR '
+        . 'Fascicolo LIKE :q2 OR '
+        . 'Serie LIKE :q3 OR '
+        . 'Sottoserie LIKE :q4 OR '
+        . '`Titolo del fascicolo` LIKE :q5 OR '
+        . '`Descrizione documento` LIKE :q6 OR '
+        . '`Estremi cronologici` LIKE :q7 OR '
+        . 'Anno LIKE :q8'
         . ')';
-    $params[':q'] = '%' . $q . '%';
+    $qPat = '%' . $q . '%';
+    $params = [':q1' => $qPat, ':q2' => $qPat, ':q3' => $qPat, ':q4' => $qPat,
+               ':q5' => $qPat, ':q6' => $qPat, ':q7' => $qPat, ':q8' => $qPat];
 }
 
 $whereSql = implode(' AND ', $whereParts);

@@ -244,8 +244,9 @@ try {
         $params = [':st' => COPY_STATUS_OUT];
         if ($tab === 'overdue') $where .= ' AND c.due_back_dt IS NOT NULL AND c.due_back_dt < CURRENT_DATE';
         if ($q !== '') {
-            $where .= ' AND (b.title LIKE :q OR b.author LIKE :q OR c.barcode_nmbr LIKE :q OR m.last_name LIKE :q OR m.first_name LIKE :q OR m.barcode_nmbr LIKE :q)';
-            $params[':q'] = '%' . $q . '%';
+            $where .= ' AND (b.title LIKE :q1 OR b.author LIKE :q2 OR c.barcode_nmbr LIKE :q3 OR m.last_name LIKE :q4 OR m.first_name LIKE :q5 OR m.barcode_nmbr LIKE :q6)';
+            $qPat = '%' . $q . '%';
+            $params += [':q1' => $qPat, ':q2' => $qPat, ':q3' => $qPat, ':q4' => $qPat, ':q5' => $qPat, ':q6' => $qPat];
         }
         $st = $db->prepare("SELECT COUNT(*) AS cnt FROM biblio_copy c INNER JOIN biblio b ON b.bibid = c.bibid LEFT JOIN member m ON m.mbrid = c.mbrid WHERE $where");
         $st->execute($params);
@@ -323,7 +324,7 @@ try {
         if ($dateFrom === '' && $dateTo === '') { $dateTo = date('Y-m-d'); $dateFrom = date('Y-m-d', strtotime('-365 days')); }
         if ($dateFrom !== '') { $where .= " AND b.create_dt >= :from_dt"; $params[':from_dt'] = $dateFrom . ' 00:00:00'; }
         if ($dateTo   !== '') { $where .= " AND b.create_dt <= :to_dt";   $params[':to_dt']   = $dateTo   . ' 23:59:59'; }
-        if ($q !== '') { $where .= " AND (b.title LIKE :q OR b.author LIKE :q OR b.call_nmbr1 LIKE :q)"; $params[':q'] = '%' . $q . '%'; }
+        if ($q !== '') { $where .= " AND (b.title LIKE :q1 OR b.author LIKE :q2 OR b.call_nmbr1 LIKE :q3)"; $qPat = '%' . $q . '%'; $params += [':q1' => $qPat, ':q2' => $qPat, ':q3' => $qPat]; }
 
         $st = $db->prepare("SELECT COUNT(*) AS cnt FROM biblio b WHERE $where");
         $st->execute($params);
@@ -350,7 +351,7 @@ try {
     } elseif ($tab === 'orphan_titles') {
         $where  = "(b.call_nmbr1 IS NULL OR TRIM(b.call_nmbr1) = '')";
         $params = [];
-        if ($q !== '') { $where .= " AND (b.title LIKE :q OR b.author LIKE :q)"; $params[':q'] = '%' . $q . '%'; }
+        if ($q !== '') { $where .= " AND (b.title LIKE :q1 OR b.author LIKE :q2)"; $qPat = '%' . $q . '%'; $params += [':q1' => $qPat, ':q2' => $qPat]; }
 
         $st = $db->prepare("SELECT COUNT(*) AS cnt FROM biblio b WHERE $where");
         $st->execute($params);
