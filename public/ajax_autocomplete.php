@@ -30,23 +30,28 @@ try {
     exit;
 }
 
-$base    = rtrim((string)($cfg['app']['base_url'] ?? '/public'), '/');
-$pattern = '%' . $q . '%';
-$results = [];
+$base       = rtrim((string)($cfg['app']['base_url'] ?? '/public'), '/');
+$anyPattern = '%' . $q . '%';
+$swPattern  = $q . '%';   // starts-with — usato per dare priorità
+$results    = [];
 
-// ── Titoli (fino a 5) ───────────────────────────────────────────────────────
+function truncAc(string $s, int $max = 72): string {
+    return mb_strlen($s, 'UTF-8') > $max ? mb_substr($s, 0, $max, 'UTF-8') . '…' : $s;
+}
+
+// ── Titoli (fino a 5, priorità "inizia con") ────────────────────────────────
 try {
     $st = $pdo->prepare("
         SELECT bibid, title, author
         FROM biblio
         WHERE title LIKE ? AND opac_flg = 'Y' AND title <> ''
-        ORDER BY title
+        ORDER BY CASE WHEN title LIKE ? THEN 0 ELSE 1 END, title
         LIMIT 5
     ");
-    $st->execute([$pattern]);
+    $st->execute([$anyPattern, $swPattern]);
     while ($row = $st->fetch(\PDO::FETCH_ASSOC)) {
-        $label = trim((string)$row['title']);
-        $sub   = trim((string)$row['author']);
+        $label = truncAc(trim((string)$row['title']));
+        $sub   = truncAc(trim((string)$row['author']), 48);
         $results[] = [
             'type'  => 'title',
             'label' => $label,
@@ -56,20 +61,20 @@ try {
     }
 } catch (\PDOException $e) {}
 
-// ── Autori (fino a 3, distinti) ─────────────────────────────────────────────
+// ── Autori (fino a 3, priorità "inizia con") ────────────────────────────────
 try {
     $st = $pdo->prepare("
         SELECT DISTINCT author
         FROM biblio
         WHERE author LIKE ? AND opac_flg = 'Y' AND author <> ''
-        ORDER BY author
+        ORDER BY CASE WHEN author LIKE ? THEN 0 ELSE 1 END, author
         LIMIT 3
     ");
-    $st->execute([$pattern]);
+    $st->execute([$anyPattern, $swPattern]);
     while ($row = $st->fetch(\PDO::FETCH_ASSOC)) {
         $results[] = [
             'type'  => 'author',
-            'label' => trim((string)$row['author']),
+            'label' => truncAc(trim((string)$row['author'])),
             'sub'   => null,
             'url'   => $base . '/index.php?page=search&q=' . urlencode(trim((string)$row['author'])),
         ];
@@ -92,14 +97,14 @@ try {
             SELECT topic5 FROM biblio WHERE topic5 LIKE ? AND opac_flg = 'Y' AND topic5 <> ''
         ) t
         GROUP BY topic
-        ORDER BY cnt DESC, topic ASC
+        ORDER BY CASE WHEN topic LIKE ? THEN 0 ELSE 1 END, cnt DESC, topic ASC
         LIMIT 3
     ");
-    $st->execute([$pattern, $pattern, $pattern, $pattern, $pattern]);
+    $st->execute([$anyPattern, $anyPattern, $anyPattern, $anyPattern, $anyPattern, $swPattern]);
     while ($row = $st->fetch(\PDO::FETCH_ASSOC)) {
         $results[] = [
             'type'  => 'topic',
-            'label' => trim((string)$row['topic']),
+            'label' => truncAc(trim((string)$row['topic'])),
             'sub'   => null,
             'url'   => $base . '/index.php?page=search&subject=' . urlencode(trim((string)$row['topic'])),
         ];

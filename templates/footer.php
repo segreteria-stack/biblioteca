@@ -208,9 +208,12 @@ if (!empty($_SESSION['patron']) && is_array($_SESSION['patron'])) {
       dropdown = document.createElement('ul');
       dropdown.className = 'ac-dropdown';
       dropdown.setAttribute('role', 'listbox');
+      var lastType = null;
       list.forEach(function(s) {
         const li = document.createElement('li');
-        li.className = 'ac-item';
+        var cls = 'ac-item';
+        if (lastType !== null && s.type !== lastType) cls += ' ac-item--group-start';
+        li.className = cls;
         li.setAttribute('role', 'option');
         li.innerHTML =
           '<span class="ac-item-icon">' + (ICONS[s.type] || '📄') + '</span>' +
@@ -224,6 +227,7 @@ if (!empty($_SESSION['patron']) && is_array($_SESSION['patron'])) {
           pick(s);
         });
         dropdown.appendChild(li);
+        lastType = s.type;
       });
       current = list;
       wrap.appendChild(dropdown);
@@ -270,6 +274,34 @@ if (!empty($_SESSION['patron']) && is_array($_SESSION['patron'])) {
 
   document.querySelectorAll('input[data-autocomplete]').forEach(initAc);
   window._initAcInput = initAc;
+}());
+</script>
+
+<!-- Banner cookie / privacy -->
+<div id="cookie-bar" role="region" aria-label="Informativa cookie" style="display:none">
+  <p>
+    Questo sito utilizza cookie tecnici necessari al funzionamento.
+    Per maggiori informazioni consulta la
+    <a href="https://www.anpiudine.org/privacy-policy/" target="_blank" rel="noopener">
+      Privacy &amp; Cookie Policy
+    </a>
+    di ANPI Udine.
+  </p>
+  <button id="cookie-bar-accept" type="button">Ho capito</button>
+</div>
+<script>
+(function () {
+  var bar = document.getElementById('cookie-bar');
+  if (!bar) return;
+  try {
+    if (localStorage.getItem('cookieConsent') !== '1') {
+      bar.style.display = '';
+    }
+  } catch(e) { bar.style.display = ''; }
+  document.getElementById('cookie-bar-accept').addEventListener('click', function () {
+    try { localStorage.setItem('cookieConsent', '1'); } catch(e) {}
+    bar.style.display = 'none';
+  });
 }());
 </script>
 </body>
