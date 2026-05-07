@@ -52,12 +52,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'toggle_suspend' && $uid > 0) {
         try {
-            $stmt = $pdo->prepare('SELECT suspended_flg FROM staff WHERE staffid = :id');
+            $stmt = $pdo->prepare('SELECT suspended_flg FROM staff WHERE userid = :id');
             $stmt->execute([':id' => $uid]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($row) {
                 $newFlag = ($row['suspended_flg'] === 'Y') ? 'N' : 'Y';
-                $pdo->prepare('UPDATE staff SET suspended_flg = :f WHERE staffid = :id LIMIT 1')
+                $pdo->prepare('UPDATE staff SET suspended_flg = :f, last_change_dt = NOW() WHERE userid = :id LIMIT 1')
                     ->execute([':f' => $newFlag, ':id' => $uid]);
                 $messages[] = 'Account ' . ($newFlag === 'Y' ? 'sospeso' : 'riattivato') . '.';
             }
@@ -69,8 +69,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare('
                 UPDATE staff
                 SET admin_flg = :a, circ_flg = :c, circ_mbr_flg = :cm,
-                    catalog_flg = :cat, reports_flg = :r
-                WHERE staffid = :id LIMIT 1
+                    catalog_flg = :cat, reports_flg = :r, last_change_dt = NOW()
+                WHERE userid = :id LIMIT 1
             ')->execute([
                 ':a'   => (isset($_POST['admin_flg'])    && $_POST['admin_flg']    === 'Y') ? 'Y' : 'N',
                 ':c'   => (isset($_POST['circ_flg'])     && $_POST['circ_flg']     === 'Y') ? 'Y' : 'N',
@@ -107,7 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = 'Email non valida.';
         } else {
             try {
-                $pdo->prepare('UPDATE staff SET first_name = :fn, last_name = :ln, email = :em WHERE staffid = :id LIMIT 1')
+                $pdo->prepare('UPDATE staff SET first_name = :fn, last_name = :ln, email = :em, last_change_dt = NOW() WHERE userid = :id LIMIT 1')
                     ->execute([':fn' => $fn !== '' ? $fn : null, ':ln' => $ln, ':em' => $email !== '' ? $email : null, ':id' => $uid]);
                 $messages[] = 'Dati anagrafici aggiornati.';
             } catch (Throwable) { $errors[] = 'Errore aggiornamento dati.'; }
@@ -122,8 +122,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $staffList = [];
 try {
     $staffList = $pdo->query('
-        SELECT staffid, username, first_name, last_name, email,
-               suspended_flg, admin_flg, circ_flg, circ_mbr_flg, catalog_flg, reports_flg
+        SELECT userid, username, first_name, last_name, email,
+               suspended_flg, admin_flg, circ_flg, circ_mbr_flg, catalog_flg, reports_flg,
+               create_dt, last_change_dt
         FROM staff
         ORDER BY last_name, first_name, username
     ')->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -179,7 +180,7 @@ $editUid = (int)($_GET['edit'] ?? 0);
             </thead>
             <tbody>
             <?php foreach ($staffList as $su):
-                $sid       = (int)$su['staffid'];
+                $sid       = (int)$su['userid'];
                 $fullName  = trim(($su['first_name'] ?? '') . ' ' . ($su['last_name'] ?? ''));
                 $isSelf    = ($sid === $currentUid);
                 $suspended = ($su['suspended_flg'] === 'Y');

@@ -34,13 +34,13 @@ $page       = max(1, (int)($_GET['p'] ?? 1));
 $perPage    = 60;
 $offset     = ($page - 1) * $perPage;
 
-// Mappa staffid → nome
+// Mappa userid → nome
 $staffMap = [];
 try {
-    $rows = $pdo->query('SELECT staffid, username, first_name, last_name FROM staff')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $rows = $pdo->query('SELECT userid, username, first_name, last_name FROM staff')->fetchAll(PDO::FETCH_ASSOC) ?: [];
     foreach ($rows as $r) {
         $name = trim(($r['first_name'] ?? '') . ' ' . ($r['last_name'] ?? ''));
-        $staffMap[(int)$r['staffid']] = $name !== '' ? $name . ' (' . $r['username'] . ')' : $r['username'];
+        $staffMap[(int)$r['userid']] = $name !== '' ? $name . ' (' . $r['username'] . ')' : $r['username'];
     }
 } catch (PDOException) {}
 
