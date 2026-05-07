@@ -21,16 +21,17 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 if (empty($_SESSION['staff_user_id'])) {
-    $baseUrl  = 'https://biblioteca.anpiudine.org/public';
-    $redirect = 'staff_catalog_edit';
-    header('Location: ' . $baseUrl . '/index.php?page=login&redirect=' . urlencode($redirect));
+    /** @var array<string,mixed> $cfg */
+    $baseUrl = rtrim((string)($cfg['app']['base_url'] ?? '/public'), '/');
+    header('Location: ' . $baseUrl . '/index.php?page=login&redirect=staff_catalog_edit');
     exit;
 }
 
 // -----------------------------------------------------------------------------
 // Setup
 // -----------------------------------------------------------------------------
-$baseUrl  = 'https://biblioteca.anpiudine.org/public';
+/** @var array<string,mixed> $cfg */
+$baseUrl  = rtrim((string)($cfg['app']['base_url'] ?? '/public'), '/');
 $pdo      = DB::conn();
 $errors   = [];
 $messages = [];
@@ -87,12 +88,12 @@ function isBarcodeUnique(PDO $pdo, string $barcode, ?int $excludeCopyId = null):
 {
     $sql = 'SELECT COUNT(*) FROM biblio_copy WHERE barcode_nmbr = :barcode';
     $params = [':barcode' => $barcode];
-    
+
     if ($excludeCopyId !== null) {
         $sql .= ' AND copyid != :exclude';
         $params[':exclude'] = $excludeCopyId;
     }
-    
+
     $stmt = $pdo->prepare($sql);
     foreach ($params as $k => $v) {
         $stmt->bindValue($k, $v, is_int($v) ? PDO::PARAM_INT : PDO::PARAM_STR);
@@ -122,9 +123,9 @@ function staff_updateMarcSimpleField(PDO $pdo, int $bibid, int $tag, string $sub
     try {
         $del = $pdo->prepare('DELETE FROM biblio_field WHERE bibid = :bibid AND tag = :tag AND subfield_cd = :sub');
         $del->execute([':bibid' => $bibid, ':tag' => $tag, ':sub' => $subfield]);
-        
+
         if ($value === '') return;
-        
+
         $ins = $pdo->prepare('INSERT INTO biblio_field (bibid, tag, subfield_cd, field_data) VALUES (:bibid, :tag, :sub, :data)');
         $ins->execute([':bibid' => $bibid, ':tag' => $tag, ':sub' => $subfield, ':data' => $value]);
     } catch (PDOException $e) {
@@ -193,7 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 $messages[] = 'Copia creata: copyid ' . $newCopyId . ' — barcode ' . $finalBarcode;
-                
+
                 header('Location: ' . $baseUrl . '/index.php?page=staff_catalog_edit&edit_bibid=' . $newBibid . '&new_barcode=' . urlencode($finalBarcode) . '#copies');
                 exit;
 
@@ -231,7 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $errors[] = 'Copia in prestito: usa il modulo prestiti per restituirla.';
                 } else {
                     $upd = $pdo->prepare('
-                        UPDATE biblio_copy 
+                        UPDATE biblio_copy
                         SET barcode_nmbr = :barcode, copy_desc = :desc, status_cd = :status, status_begin_dt = NOW()
                         WHERE copyid = :copyid AND bibid = :bibid LIMIT 1
                     ');
@@ -270,7 +271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $errors[] = 'Copia in prestito: restituirla prima di scartarla.';
                 } else {
                     $upd = $pdo->prepare('
-                        UPDATE biblio_copy 
+                        UPDATE biblio_copy
                         SET status_cd = \'dis\', status_begin_dt = NOW(), due_back_dt = NULL
                         WHERE bibid = :bibid AND copyid = :copyid LIMIT 1
                     ');
@@ -312,10 +313,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     } else {
                         $pdo->prepare('DELETE FROM biblio_copy_fields WHERE bibid = :bibid AND copyid = :copyid')
                             ->execute([':bibid' => $bibid, ':copyid' => $copyid]);
-                        
+
                         $pdo->prepare('DELETE FROM biblio_copy WHERE bibid = :bibid AND copyid = :copyid LIMIT 1')
                             ->execute([':bibid' => $bibid, ':copyid' => $copyid]);
-                        
+
                         $messages[] = 'Copia #' . $copyid . ' eliminata.';
                     }
                 }
@@ -331,7 +332,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // -------------------------------------------------------------------------
     if ($postAction === 'update') {
         $upBibid = (int)($_POST['bibid'] ?? 0);
-        
+
         if ($upBibid <= 0) {
             $errors[] = 'Record non valido.';
         } elseif (trim((string)($_POST['title'] ?? '')) === '') {
@@ -343,8 +344,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             try {
                 $stmt = $pdo->prepare('
-                    UPDATE biblio 
-                    SET title = :title, title_remainder = :tr, responsibility_stmt = :resp, 
+                    UPDATE biblio
+                    SET title = :title, title_remainder = :tr, responsibility_stmt = :resp,
                         author = :author, call_nmbr1 = :c1, call_nmbr2 = :c2, call_nmbr3 = :c3,
                         material_cd = :mat, collection_cd = :coll,
                         topic1 = :t1, topic2 = :t2, topic3 = :t3, topic4 = :t4, topic5 = :t5,
@@ -397,7 +398,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare('SELECT COUNT(*) FROM biblio_copy WHERE bibid = :bibid');
                 $stmt->execute([':bibid' => $delBibid]);
                 $copyCount = (int)$stmt->fetchColumn();
-                
+
                 if ($copyCount > 0) {
                     $errors[] = 'Elimina prima tutte le ' . $copyCount . ' copie collegate.';
                 } else {
@@ -444,7 +445,7 @@ if ($isSearchRequest) {
             } else {
                 $whereParts = [];
                 $params = [];
-                
+
                 if ($titleStr !== '') {
                     $whereParts[] = 'b.title LIKE :title';
                     $params[':title'] = '%' . $titleStr . '%';
@@ -453,13 +454,13 @@ if ($isSearchRequest) {
                     $whereParts[] = 'bf.field_data LIKE :isbn';
                     $params[':isbn'] = '%' . $isbnStr . '%';
                 }
-                
+
                 $sql = 'SELECT DISTINCT b.bibid, b.title, b.author FROM biblio b';
                 if (isset($params[':isbn'])) {
                     $sql .= ' JOIN biblio_field bf ON bf.bibid = b.bibid AND bf.tag = 20 AND bf.subfield_cd = \'a\'';
                 }
                 $sql .= ' WHERE ' . implode(' AND ', $whereParts) . ' ORDER BY b.bibid DESC LIMIT 50';
-                
+
                 $stmt = $pdo->prepare($sql);
                 foreach ($params as $k => $v) {
                     $stmt->bindValue($k, $v, PDO::PARAM_STR);
@@ -528,14 +529,14 @@ if (!$skipEditLoading && $editBibid > 0) {
     </header>
 
     <?php if (!empty($messages)): ?>
-    <div class="alert alert-success" style="margin-top:0.75rem;background-color:#ecfdf5;border:1px solid #6ee7b7;padding:0.75rem;border-radius:6px;">
-        <?php foreach ($messages as $msg): ?><p style="margin:0;"><?= h($msg) ?></p><?php endforeach; ?>
+    <div class="alert--success">
+        <?php foreach ($messages as $msg): ?><p><?= h($msg) ?></p><?php endforeach; ?>
     </div>
     <?php endif; ?>
 
     <?php if (!empty($errors)): ?>
-    <div class="alert alert-error" style="margin-top:0.75rem;background-color:#fef2f2;border:1px solid #fecaca;padding:0.75rem;border-radius:6px;">
-        <?php foreach ($errors as $msg): ?><p style="margin:0;color:#991b1b;"><?= h($msg) ?></p><?php endforeach; ?>
+    <div class="alert--error">
+        <?php foreach ($errors as $msg): ?><p><?= h($msg) ?></p><?php endforeach; ?>
     </div>
     <?php endif; ?>
 
@@ -545,7 +546,7 @@ if (!$skipEditLoading && $editBibid > 0) {
         <form method="get" action="<?= h($baseUrl) ?>/index.php" class="staff-search-form">
             <input type="hidden" name="page" value="staff_catalog_edit">
             <input type="hidden" name="do_search" value="1">
-            
+
             <div class="search-row">
                 <label for="s-bibid">bibid</label>
                 <input type="text" id="s-bibid" name="bibid" value="<?= h($bibidStr) ?>" placeholder="es. 1234" inputmode="numeric">
@@ -568,20 +569,20 @@ if (!$skipEditLoading && $editBibid > 0) {
 
     <!-- RISULTATI -->
     <?php if ($isSearchRequest): ?>
-    <section class="staff-block staff-block--results" style="margin-top:1.25rem;">
+    <section class="staff-block staff-block--results">
         <h2>Risultati</h2>
         <?php if (empty($results)): ?>
             <p>Nessun record trovato.</p>
         <?php else: ?>
             <ul class="result-list">
-            <?php foreach ($results as $row): 
+            <?php foreach ($results as $row):
                 $rbib = (int)$row['bibid'];
                 $rtitle = trim((string)($row['title'] ?? '')) ?: '[Senza titolo]';
             ?>
-                <li class="result-item" style="margin-bottom:0.5rem;padding:0.5rem;border:1px solid #e5e7eb;border-radius:6px;">
+                <li class="staff-result-item">
                     <div class="result-title"><strong>#<?= $rbib ?></strong> — <?= h($rtitle) ?></div>
                     <?php if (!empty($row['author'])): ?>
-                    <div class="result-author" style="font-size:0.9rem;color:#666;"><?= h($row['author']) ?></div>
+                    <div class="result-author"><?= h($row['author']) ?></div>
                     <?php endif; ?>
                     <a class="btn-link" href="<?= h($baseUrl) ?>/index.php?page=staff_catalog_edit&edit_bibid=<?= $rbib ?>">Modifica</a>
                 </li>
@@ -592,12 +593,12 @@ if (!$skipEditLoading && $editBibid > 0) {
     <?php endif; ?>
 
     <!-- MODIFICA RECORD -->
-    <?php if ($editRecord): 
+    <?php if ($editRecord):
         $ebib = (int)$editRecord['bibid'];
     ?>
-    <section class="staff-block staff-block--edit" style="margin-top:1.5rem;">
+    <section class="staff-block staff-block--edit">
         <h2>Modifica record #<?= $ebib ?></h2>
-        
+
         <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_catalog_edit&edit_bibid=<?= $ebib ?>" class="staff-edit-form">
             <input type="hidden" name="action" value="update">
             <input type="hidden" name="bibid" value="<?= $ebib ?>">
@@ -634,7 +635,7 @@ if (!$skipEditLoading && $editBibid > 0) {
                     <label>Tipo materiale</label>
                     <select name="material_cd">
                         <option value="">--</option>
-                        <?php foreach ($materialList as $mat): 
+                        <?php foreach ($materialList as $mat):
                             $mCode = (string)$mat['code'];
                             $sel = ($mCode === (string)($editRecord['material_cd'] ?? '')) ? 'selected' : '';
                         ?>
@@ -646,7 +647,7 @@ if (!$skipEditLoading && $editBibid > 0) {
                     <label>Collezione</label>
                     <select name="collection_cd">
                         <option value="">--</option>
-                        <?php foreach ($collectionList as $coll): 
+                        <?php foreach ($collectionList as $coll):
                             $cCode = (string)$coll['code'];
                             $sel = ($cCode === (string)($editRecord['collection_cd'] ?? '')) ? 'selected' : '';
                         ?>
@@ -681,97 +682,98 @@ if (!$skipEditLoading && $editBibid > 0) {
         <!-- COPIE -->
         <div id="copies" class="staff-copy-section" style="margin-top:2rem;">
             <h3>Copie collegate</h3>
-            
+
             <?php if (!empty($_GET['new_barcode'])): ?>
-            <div style="margin:0.35rem 0 0.6rem;padding:0.6rem;border:1px solid #22c55e;border-radius:6px;background:#f0fdf4;">
-                <div style="font-size:0.85rem;color:#15803d;margin-bottom:0.25rem;">Nuova copia creata — Barcode:</div>
-                <input type="text" readonly value="<?= h($_GET['new_barcode']) ?>" onclick="this.select()"
-                       style="width:100%;max-width:240px;font-size:1.15rem;font-family:monospace;padding:0.35rem 0.5rem;border:1px solid #86efac;border-radius:6px;background:#ffffff;">
+            <div class="copy-new-barcode">
+                <div class="copy-new-barcode-label">Nuova copia creata — Barcode:</div>
+                <input type="text" readonly value="<?= h($_GET['new_barcode']) ?>" onclick="this.select()">
             </div>
             <?php endif; ?>
 
-            <p style="margin:0.25rem 0 0.5rem;">
-                <button type="button" class="btn-link" id="btn-open-add-copy" style="background:none;border:none;padding:0;cursor:pointer;color:#dc2626;font-weight:600;">+ Aggiungi nuova copia</button>
+            <p style="margin:0.25rem 0 0.75rem;">
+                <button type="button" class="btn-add-copy" id="btn-open-add-copy">+ Aggiungi nuova copia</button>
             </p>
 
             <?php if (!empty($editCopies)): ?>
             <div style="overflow-x:auto;">
-                <table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+                <table class="copy-table">
                     <thead>
-                        <tr style="border-bottom:2px solid #e5e7eb;text-align:left;">
-                            <th style="padding:0.5rem;">CopyID</th>
-                            <th style="padding:0.5rem;">Barcode</th>
-                            <th style="padding:0.5rem;">Stato</th>
-                            <th style="padding:0.5rem;">Prestatario</th>
-                            <th style="padding:0.5rem;">Note</th>
-                            <th style="padding:0.5rem;">Azioni</th>
+                        <tr>
+                            <th>CopyID</th>
+                            <th>Barcode</th>
+                            <th>Stato</th>
+                            <th>Prestatario</th>
+                            <th>Note</th>
+                            <th>Azioni</th>
                         </tr>
                     </thead>
                     <tbody>
-                    <?php foreach ($editCopies as $copy): 
+                    <?php foreach ($editCopies as $copy):
                         $cid = (int)$copy['copyid'];
                         $status = $copy['status_cd'];
                         $inLoan = in_array($status, ['out', 'ln', 'hld'], true);
                         $color = $statusColors[$status] ?? '#374151';
                     ?>
-                        <tr style="border-bottom:1px solid #f3f4f6;">
-                            <td style="padding:0.5rem;" class="view-<?= $cid ?>"><?= $cid ?></td>
-                            <td style="padding:0.5rem;font-family:monospace;" class="view-<?= $cid ?>"><?= h($copy['barcode_nmbr']) ?></td>
-                            <td style="padding:0.5rem;" class="view-<?= $cid ?>">
+                        <tr class="view-<?= $cid ?>">
+                            <td><?= $cid ?></td>
+                            <td class="copy-barcode"><?= h($copy['barcode_nmbr']) ?></td>
+                            <td>
                                 <span style="color:<?= $color ?>;font-weight:600;"><?= h($statusLabels[$status] ?? $status) ?></span>
                             </td>
-                            <td style="padding:0.5rem;" class="view-<?= $cid ?>">
-                                <?= $copy['mbrid'] ? h(($copy['first_name'] ?? '') . ' ' . ($copy['last_name'] ?? '')) : '—' ?>
+                            <td>
+                                <?= $copy['mbrid'] ? h(trim(($copy['first_name'] ?? '') . ' ' . ($copy['last_name'] ?? ''))) : '—' ?>
                             </td>
-                            <td style="padding:0.5rem;" class="view-<?= $cid ?>"><?= h($copy['copy_desc']) ?: '—' ?></td>
-                            <td style="padding:0.5rem;" class="view-<?= $cid ?>">
+                            <td><?= h($copy['copy_desc'] ?? '') ?: '—' ?></td>
+                            <td>
                                 <?php if (!$inLoan): ?>
-                                    <button type="button" class="btn-link" onclick="toggleEdit(<?= $cid ?>)" style="background:none;border:none;padding:0;cursor:pointer;color:#dc2626;">Modifica</button>
+                                    <button type="button" class="btn-link" onclick="toggleEdit(<?= $cid ?>)">Modifica</button>
                                 <?php else: ?>
                                     <small style="color:#9ca3af;">In prestito</small>
                                 <?php endif; ?>
                             </td>
+                        </tr>
 
-                            <!-- Form modifica inline -->
-                            <td colspan="6" class="edit-<?= $cid ?>" style="display:none;background:#f9fafb;padding:1rem;">
+                        <!-- Riga modifica inline -->
+                        <tr class="edit-<?= $cid ?>" style="display:none;">
+                            <td colspan="6" class="copy-edit-row">
                                 <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_catalog_edit&edit_bibid=<?= $ebib ?>">
                                     <input type="hidden" name="action" value="update_copy">
                                     <input type="hidden" name="bibid" value="<?= $ebib ?>">
                                     <input type="hidden" name="copyid" value="<?= $cid ?>">
 
-                                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:end;">
-                                        <div style="flex:1 1 140px;">
-                                            <label style="font-size:0.75rem;color:#6b7280;">Barcode</label>
-                                            <input type="text" name="barcode_nmbr" value="<?= h($copy['barcode_nmbr']) ?>" required pattern="[A-Z0-9\-]{3,20}" style="width:100%;padding:0.3rem;font-family:monospace;">
+                                    <div class="copy-inline-form">
+                                        <div class="copy-inline-field" style="flex:1 1 140px;">
+                                            <label>Barcode</label>
+                                            <input type="text" name="barcode_nmbr" value="<?= h($copy['barcode_nmbr']) ?>" required pattern="[A-Z0-9\-]{3,20}" style="font-family:monospace;">
                                         </div>
-                                        <div style="flex:1 1 120px;">
-                                            <label style="font-size:0.75rem;color:#6b7280;">Stato</label>
-                                            <select name="status_cd" style="width:100%;padding:0.3rem;">
-                                                <?php foreach ($statusList as $s): 
+                                        <div class="copy-inline-field" style="flex:1 1 120px;">
+                                            <label>Stato</label>
+                                            <select name="status_cd">
+                                                <?php foreach ($statusList as $s):
                                                     if (in_array($s['code'], ['out', 'ln'], true)) continue;
                                                 ?>
                                                 <option value="<?= h($s['code']) ?>" <?= $status === $s['code'] ? 'selected' : '' ?>><?= h($s['description']) ?></option>
                                                 <?php endforeach; ?>
                                             </select>
                                         </div>
-                                        <div style="flex:2 1 200px;">
-                                            <label style="font-size:0.75rem;color:#6b7280;">Nota</label>
-                                            <input type="text" name="copy_desc" value="<?= h($copy['copy_desc']) ?>" style="width:100%;padding:0.3rem;">
+                                        <div class="copy-inline-field" style="flex:2 1 200px;">
+                                            <label>Nota</label>
+                                            <input type="text" name="copy_desc" value="<?= h($copy['copy_desc'] ?? '') ?>">
                                         </div>
-                                        <div style="display:flex;gap:0.35rem;">
+                                        <div class="copy-inline-actions">
                                             <button type="submit" class="btn-primary" style="padding:0.35rem 0.7rem;font-size:0.85rem;">Salva</button>
                                             <button type="button" class="btn-secondary" style="padding:0.35rem 0.7rem;font-size:0.85rem;" onclick="toggleEdit(<?= $cid ?>)">Annulla</button>
                                         </div>
                                     </div>
                                 </form>
 
-                                <div style="margin-top:0.75rem;padding-top:0.5rem;border-top:1px solid #e5e7eb;display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+                                <div class="copy-danger-actions">
                                     <?php if ($status !== 'dis'): ?>
                                     <form method="post" style="display:inline" onsubmit="return confirm('Scartare questa copia? Verrà archiviata con stato Scartato.')">
                                         <input type="hidden" name="action" value="discard_copy">
                                         <input type="hidden" name="bibid" value="<?= $ebib ?>">
                                         <input type="hidden" name="copyid" value="<?= $cid ?>">
-                                        <button type="submit" style="color:#9a3412;font-size:0.8rem;background:none;border:none;cursor:pointer;">🗑️ Scarta</button>
+                                        <button type="submit" class="btn-link--danger">🗑️ Scarta</button>
                                     </form>
                                     <?php endif; ?>
 
@@ -780,7 +782,7 @@ if (!$skipEditLoading && $editBibid > 0) {
                                         <input type="hidden" name="action" value="force_delete_copy">
                                         <input type="hidden" name="bibid" value="<?= $ebib ?>">
                                         <input type="hidden" name="copyid" value="<?= $cid ?>">
-                                        <button type="submit" style="color:#b91c1c;font-size:0.8rem;background:none;border:none;cursor:pointer;">❌ Elimina fisica</button>
+                                        <button type="submit" class="btn-link--delete">❌ Elimina fisica</button>
                                     </form>
                                     <?php endif; ?>
                                 </div>
@@ -796,14 +798,14 @@ if (!$skipEditLoading && $editBibid > 0) {
         </div>
 
         <!-- MODAL AGGIUNGI COPIA -->
-        <div id="modal-add-copy" style="display:none;position:fixed;inset:0;z-index:9999;">
-            <div id="modal-backdrop" style="position:absolute;inset:0;background:rgba(0,0,0,0.45);"></div>
-            <div role="dialog" aria-modal="true" style="position:relative;max-width:560px;margin:8vh auto;background:#ffffff;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 12px 36px rgba(0,0,0,0.25);">
-                <div style="display:flex;align-items:center;justify-content:space-between;padding:0.85rem 1rem;border-bottom:1px solid #e5e7eb;">
-                    <h3 style="margin:0;font-size:1rem;">Aggiungi nuova copia</h3>
+        <div id="modal-add-copy" class="copy-modal-overlay" style="display:none;">
+            <div id="modal-backdrop" class="copy-modal-backdrop"></div>
+            <div role="dialog" aria-modal="true" class="copy-modal-box">
+                <div class="copy-modal-header">
+                    <h3>Aggiungi nuova copia</h3>
                     <button type="button" id="btn-close-add-copy" class="btn-secondary" style="padding:0.25rem 0.6rem;">Chiudi</button>
                 </div>
-                <div style="padding:1rem;">
+                <div class="copy-modal-body">
                     <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_catalog_edit&edit_bibid=<?= $ebib ?>">
                         <input type="hidden" name="action" value="add_copy">
                         <input type="hidden" name="bibid" value="<?= $ebib ?>">
@@ -817,7 +819,7 @@ if (!$skipEditLoading && $editBibid > 0) {
                         <div class="search-row" id="manual-barcode-box" style="display:none;">
                             <label for="new-barcode">Barcode manuale</label>
                             <input type="text" id="new-barcode" name="barcode_manual" maxlength="20" pattern="[A-Z0-9\-]{3,20}" placeholder="Es. 9788801234567">
-                            <p class="search-help" style="font-size:0.8rem;color:#666;">Deve essere univoco. Se non spunti la casella, si genera automaticamente (7 cifre).</p>
+                            <p class="search-help">Deve essere univoco. Se non spunti la casella, si genera automaticamente (7 cifre).</p>
                         </div>
 
                         <div class="search-row">
@@ -835,20 +837,20 @@ if (!$skipEditLoading && $editBibid > 0) {
         </div>
 
         <!-- ELIMINA RECORD -->
-        <section class="staff-delete-box" style="margin-top:2rem;padding-top:1rem;border-top:2px solid #e5e7eb;">
-            <h3 style="font-size:1rem;margin-bottom:0.4rem;">Elimina record</h3>
+        <section class="staff-delete-box">
+            <h3>Elimina record</h3>
             <p style="font-size:0.9rem;color:#7f1d1d;margin-bottom:0.6rem;">Operazione <strong>definitiva</strong>.</p>
             <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_catalog_edit&edit_bibid=<?= $ebib ?>">
                 <input type="hidden" name="action" value="delete">
                 <input type="hidden" name="bibid" value="<?= $ebib ?>">
-                
+
                 <?php if ($editCopyCount > 0): ?>
-                <div style="margin-bottom:0.6rem;padding:0.6rem;border:1px solid #fecaca;background:#fff1f2;border-radius:6px;">
-                    <p style="margin:0;font-size:0.9rem;color:#7f1d1d;">⚠️ <?= $editCopyCount ?> copie attive collegate. Elimina prima tutte le copie.</p>
+                <div class="staff-delete-warning">
+                    ⚠️ <?= $editCopyCount ?> copie attive collegate. Elimina prima tutte le copie.
                 </div>
                 <?php endif; ?>
-                
-                <button type="submit" class="btn-secondary" style="border-color:#b91c1c;color:#b91c1c;" <?= $editCopyCount > 0 ? 'disabled' : '' ?> onclick="return confirm('Eliminare DEFINITIVAMENTE?');">Elimina record</button>
+
+                <button type="submit" class="btn-secondary btn-delete" <?= $editCopyCount > 0 ? 'disabled' : '' ?> onclick="return confirm('Eliminare DEFINITIVAMENTE?');">Elimina record</button>
             </form>
         </section>
 
@@ -856,7 +858,7 @@ if (!$skipEditLoading && $editBibid > 0) {
         (function() {
             var modal = document.getElementById('modal-add-copy');
             var backdrop = document.getElementById('modal-backdrop');
-            
+
             function openModal() {
                 if (!modal) return;
                 modal.style.display = 'block';
@@ -867,26 +869,25 @@ if (!$skipEditLoading && $editBibid > 0) {
                 if (!modal) return;
                 modal.style.display = 'none';
             }
-            
+
             document.getElementById('btn-open-add-copy')?.addEventListener('click', function(e) { e.preventDefault(); openModal(); });
             document.getElementById('btn-close-add-copy')?.addEventListener('click', closeModal);
             document.getElementById('btn-cancel-add-copy')?.addEventListener('click', closeModal);
             backdrop?.addEventListener('click', closeModal);
             document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
-            
+
             document.getElementById('use-manual-barcode')?.addEventListener('change', function() {
                 document.getElementById('manual-barcode-box').style.display = this.checked ? 'block' : 'none';
                 if (this.checked) setTimeout(function(){ document.getElementById('new-barcode').focus(); }, 0);
             });
         })();
-        
+
         function toggleEdit(cid) {
             document.querySelectorAll('.view-' + cid).forEach(function(el) {
                 el.style.display = el.style.display === 'none' ? '' : 'none';
             });
             var edit = document.querySelector('.edit-' + cid);
-            edit.style.display = edit.style.display === 'none' ? 'table-cell' : 'none';
-            edit.setAttribute('colspan', '6');
+            edit.style.display = edit.style.display === 'none' ? '' : 'none';
         }
         </script>
     </section>
