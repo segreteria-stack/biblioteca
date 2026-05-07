@@ -25,7 +25,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 if (empty($_SESSION['staff_user_id'])) {
-    $baseUrl  = function_exists('base_url') ? base_url() : '';
+    $baseUrl  = base_url();
     $redirect = 'staff';
     header('Location: ' . $baseUrl . '/index.php?page=login&redirect=' . urlencode($redirect));
     exit;
@@ -42,7 +42,7 @@ if (!($db instanceof PDO)) {
     exit;
 }
 
-$baseUrl = (string)($cfg['app']['base_url'] ?? (function_exists('base_url') ? base_url() : ''));
+$baseUrl = base_url();
 
 // Tabelle (default)
 $T_MEMBER      = 'member';

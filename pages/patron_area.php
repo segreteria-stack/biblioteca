@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 $title = 'Area Utente';
 
 if (session_status() === PHP_SESSION_NONE) {

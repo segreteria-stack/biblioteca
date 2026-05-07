@@ -9,11 +9,6 @@ declare(strict_types=1);
  * Quando approvato, spostiamo le regole in style.css.
  */
 
-// Helper escaping (se non esiste già nel progetto)
-if (!function_exists('h')) {
-  function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
-}
-
 // --- Dati contatto (centralizzati qui; in futuro spostabili in config/backend) ---
 $orgName   = 'Biblioteca della Resistenza';
 $parentOrg = 'Comitato Provinciale ANPI di Udine';

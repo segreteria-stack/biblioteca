@@ -26,14 +26,13 @@ $pdo     = DB::conn();
 $errors  = [];
 $messages = [];
 
-if (!function_exists('h')) {
-    function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
-}
-
 // =============================================================================
 // POST – rinomina soggetto
 // =============================================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!csrf_verify($_POST['_csrf'] ?? '')) {
+        $errors[] = 'Sessione scaduta o token non valido, riprova.';
+    } else {
     $action  = trim((string)($_POST['action'] ?? ''));
     $oldName = trim((string)($_POST['old_name'] ?? ''));
     $newName = trim((string)($_POST['new_name'] ?? ''));
@@ -80,6 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
+    } // end csrf_verify
 }
 
 // =============================================================================
@@ -184,6 +184,7 @@ $totalTopics = count($topics);
                     <form id="form-t-<?= h(urlencode($topicVal)) ?>" method="post"
                           action="<?= h($baseUrl) ?>/index.php?page=staff_topics<?= $filter !== '' ? '&q=' . urlencode($filter) : '' ?>&sort=<?= h($sort) ?>"
                           style="display:none;margin-top:0.35rem;">
+                        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                         <input type="hidden" name="action" value="rename">
                         <input type="hidden" name="old_name" value="<?= h($topicVal) ?>">
                         <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
@@ -209,6 +210,7 @@ $totalTopics = count($topics);
                         <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_topics<?= $filter !== '' ? '&q=' . urlencode($filter) : '' ?>&sort=<?= h($sort) ?>"
                               style="display:inline"
                               onsubmit="return confirm('Rimuovere il soggetto &quot;<?= h(addslashes($topicVal)) ?>&quot; da tutti i record? L\'operazione non può essere annullata.')">
+                            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                             <input type="hidden" name="action" value="delete">
                             <input type="hidden" name="old_name" value="<?= h($topicVal) ?>">
                             <button type="submit" class="btn-link--danger" style="font-size:0.82rem;">Rimuovi</button>

@@ -26,7 +26,7 @@ declare(strict_types=1);
 
 /** @var PDO $pdo */
 $pdo     = DB::conn();
-$baseUrl = function_exists('base_url') ? base_url() : '';
+$baseUrl = base_url();
 
 // -----------------------------------------------------------------------------
 // Parametri di input (GET)

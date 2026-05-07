@@ -20,6 +20,29 @@ function base_url(): string
 }
 
 /**
+ * Restituisce il token CSRF di sessione (lo genera se non esiste).
+ * Usa una chiave di sessione condivisa tra tutte le pagine staff.
+ */
+function csrf_token(): string
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_start();
+    }
+    if (empty($_SESSION['_csrf'])) {
+        $_SESSION['_csrf'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['_csrf'];
+}
+
+/**
+ * Verifica il token CSRF con confronto a tempo costante.
+ */
+function csrf_verify(string $token): bool
+{
+    return $token !== '' && hash_equals($_SESSION['_csrf'] ?? '', $token);
+}
+
+/**
  * Tokenizza una stringa di ricerca rispettando le virgolette doppie.
  *
  * Esempi:

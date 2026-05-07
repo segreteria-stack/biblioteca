@@ -38,15 +38,6 @@ $messages = [];
 $skipEditLoading = false;
 
 // -----------------------------------------------------------------------------
-// Helper: htmlspecialchars wrapper
-// -----------------------------------------------------------------------------
-if (!function_exists('h')) {
-    function h(string $text): string {
-        return htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    }
-}
-
-// -----------------------------------------------------------------------------
 // Liste domini
 // -----------------------------------------------------------------------------
 $materialList   = [];
@@ -138,6 +129,9 @@ function staff_updateMarcSimpleField(PDO $pdo, int $bibid, int $tag, string $sub
 // =============================================================================
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!csrf_verify($_POST['_csrf'] ?? '')) {
+        $errors[] = 'Sessione scaduta o token non valido, riprova.';
+    } else {
     $postAction = trim((string)($_POST['action'] ?? ''));
 
     // -------------------------------------------------------------------------
@@ -413,6 +407,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
+    } // end csrf_verify
 }
 
 // =============================================================================
@@ -600,6 +595,7 @@ if (!$skipEditLoading && $editBibid > 0) {
         <h2>Modifica record #<?= $ebib ?></h2>
 
         <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_catalog_edit&edit_bibid=<?= $ebib ?>" class="staff-edit-form">
+            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
             <input type="hidden" name="action" value="update">
             <input type="hidden" name="bibid" value="<?= $ebib ?>">
 
@@ -737,6 +733,7 @@ if (!$skipEditLoading && $editBibid > 0) {
                         <tr class="edit-<?= $cid ?>" style="display:none;">
                             <td colspan="6" class="copy-edit-row">
                                 <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_catalog_edit&edit_bibid=<?= $ebib ?>">
+                                    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                                     <input type="hidden" name="action" value="update_copy">
                                     <input type="hidden" name="bibid" value="<?= $ebib ?>">
                                     <input type="hidden" name="copyid" value="<?= $cid ?>">
@@ -770,6 +767,7 @@ if (!$skipEditLoading && $editBibid > 0) {
                                 <div class="copy-danger-actions">
                                     <?php if ($status !== 'dis'): ?>
                                     <form method="post" style="display:inline" onsubmit="return confirm('Scartare questa copia? Verrà archiviata con stato Scartato.')">
+                                        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                                         <input type="hidden" name="action" value="discard_copy">
                                         <input type="hidden" name="bibid" value="<?= $ebib ?>">
                                         <input type="hidden" name="copyid" value="<?= $cid ?>">
@@ -779,6 +777,7 @@ if (!$skipEditLoading && $editBibid > 0) {
 
                                     <?php if (!$inLoan): ?>
                                     <form method="post" style="display:inline" onsubmit="return confirm('ELIMINARE DEFINITIVAMENTE?')">
+                                        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                                         <input type="hidden" name="action" value="force_delete_copy">
                                         <input type="hidden" name="bibid" value="<?= $ebib ?>">
                                         <input type="hidden" name="copyid" value="<?= $cid ?>">
@@ -807,6 +806,7 @@ if (!$skipEditLoading && $editBibid > 0) {
                 </div>
                 <div class="copy-modal-body">
                     <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_catalog_edit&edit_bibid=<?= $ebib ?>">
+                        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                         <input type="hidden" name="action" value="add_copy">
                         <input type="hidden" name="bibid" value="<?= $ebib ?>">
 
@@ -841,6 +841,7 @@ if (!$skipEditLoading && $editBibid > 0) {
             <h3>Elimina record</h3>
             <p style="font-size:0.9rem;color:#7f1d1d;margin-bottom:0.6rem;">Operazione <strong>definitiva</strong>.</p>
             <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_catalog_edit&edit_bibid=<?= $ebib ?>">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                 <input type="hidden" name="action" value="delete">
                 <input type="hidden" name="bibid" value="<?= $ebib ?>">
 

@@ -27,10 +27,6 @@ $errors  = [];
 $messages = [];
 $resetLink = '';
 
-if (!function_exists('h')) {
-    function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
-}
-
 $isAdmin    = !empty($_SESSION['staff_is_admin']) && $_SESSION['staff_is_admin'] === true;
 $currentUid = (int)($_SESSION['staff_user_id'] ?? 0);
 
@@ -48,6 +44,9 @@ if (!$isAdmin) {
 // POST
 // =============================================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!csrf_verify($_POST['_csrf'] ?? '')) {
+        $errors[] = 'Sessione scaduta o token non valido, riprova.';
+    } else {
     $action  = trim((string)($_POST['action'] ?? ''));
     $uid     = (int)($_POST['userid'] ?? 0);
 
@@ -114,6 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (Throwable) { $errors[] = 'Errore aggiornamento dati.'; }
         }
     }
+    } // end csrf_verify
 }
 
 // =============================================================================
@@ -214,6 +214,7 @@ $editUid = (int)($_GET['edit'] ?? 0);
                         <?php if (!$isSelf): ?>
                         <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_users" style="display:inline"
                               onsubmit="return confirm('<?= $suspended ? 'Riattivare' : 'Sospendere' ?> questo account?')">
+                            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                             <input type="hidden" name="action" value="toggle_suspend">
                             <input type="hidden" name="userid" value="<?= $sid ?>">
                             <button type="submit" class="btn-link<?= $suspended ? '' : '--danger' ?>" style="font-size:0.82rem;">
@@ -225,6 +226,7 @@ $editUid = (int)($_GET['edit'] ?? 0);
                             Modifica
                         </a>
                         <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_users" style="display:inline">
+                            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                             <input type="hidden" name="action" value="gen_reset">
                             <input type="hidden" name="userid" value="<?= $sid ?>">
                             <button type="submit" class="btn-link" style="font-size:0.82rem;">Reset pwd</button>
@@ -240,6 +242,7 @@ $editUid = (int)($_GET['edit'] ?? 0);
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
                         <!-- Dati anagrafici -->
                         <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_users#u<?= $sid ?>">
+                            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                             <input type="hidden" name="action" value="update_info">
                             <input type="hidden" name="userid" value="<?= $sid ?>">
                             <h4 style="margin:0 0 0.5rem;">Dati anagrafici</h4>
@@ -255,6 +258,7 @@ $editUid = (int)($_GET['edit'] ?? 0);
                         <!-- Permessi (non modificabili su sé stessi) -->
                         <?php if (!$isSelf): ?>
                         <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_users#u<?= $sid ?>">
+                            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                             <input type="hidden" name="action" value="update_perms">
                             <input type="hidden" name="userid" value="<?= $sid ?>">
                             <h4 style="margin:0 0 0.5rem;">Permessi</h4>

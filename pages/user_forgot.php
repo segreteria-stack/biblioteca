@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 $title = 'Recupero password';
 
 if (session_status() === PHP_SESSION_NONE) {

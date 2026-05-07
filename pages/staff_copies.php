@@ -1,9 +1,6 @@
 <?php
 /**
  * Area Staff – Aggiornamento rapido disponibilità copie
- *
- * Cerca una copia per barcode o bibid e aggiorna lo stato / la collocazione
- * senza dover aprire l'intero record di modifica.
  */
 
 declare(strict_types=1);
@@ -20,16 +17,11 @@ if (empty($_SESSION['staff_user_id'])) {
 }
 
 /** @var array<string,mixed> $cfg */
-$baseUrl = rtrim((string)($cfg['app']['base_url'] ?? '/public'), '/');
-$pdo     = DB::conn();
-$errors  = [];
+$baseUrl  = rtrim((string)($cfg['app']['base_url'] ?? '/public'), '/');
+$pdo      = DB::conn();
+$errors   = [];
 $messages = [];
 
-if (!function_exists('h')) {
-    function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
-}
-
-// Mappa stati
 $statusList   = [];
 $statusLabels = [];
 $statusColors = [
@@ -44,43 +36,40 @@ try {
 } catch (PDOException) {}
 
 // =============================================================================
-// POST – aggiorna stato e/o collocazione
+// POST
 // =============================================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $bibid     = (int)($_POST['bibid'] ?? 0);
-    $copyid    = (int)($_POST['copyid'] ?? 0);
-    $newStatus = trim((string)($_POST['status_cd'] ?? ''));
-    $newDesc   = trim((string)($_POST['copy_desc'] ?? ''));
-    $newLoc    = trim((string)($_POST['location'] ?? ''));
-
-    if ($bibid <= 0 || $copyid <= 0) {
-        $errors[] = 'Dati copia non validi.';
+    if (!csrf_verify($_POST['_csrf'] ?? '')) {
+        $errors[] = 'Sessione scaduta o token non valido, riprova.';
     } else {
-        try {
-            $stmt = $pdo->prepare('SELECT status_cd, mbrid FROM biblio_copy WHERE bibid = :b AND copyid = :c');
-            $stmt->execute([':b' => $bibid, ':c' => $copyid]);
-            $cur = $stmt->fetch(PDO::FETCH_ASSOC);
+        $bibid     = (int)($_POST['bibid'] ?? 0);
+        $copyid    = (int)($_POST['copyid'] ?? 0);
+        $newStatus = trim((string)($_POST['status_cd'] ?? ''));
+        $newDesc   = trim((string)($_POST['copy_desc'] ?? ''));
 
-            if (!$cur) {
-                $errors[] = 'Copia non trovata.';
-            } elseif ($cur['mbrid'] !== null && !in_array($newStatus, ['out', 'ln'], true)) {
-                $errors[] = 'Copia in prestito: usa il modulo prestiti per restituirla.';
-            } else {
-                $pdo->prepare('
-                    UPDATE biblio_copy
-                    SET status_cd = :s, status_begin_dt = NOW(), copy_desc = :d
-                    WHERE bibid = :b AND copyid = :c LIMIT 1
-                ')->execute([':s' => $newStatus, ':d' => $newDesc !== '' ? $newDesc : null, ':b' => $bibid, ':c' => $copyid]);
+        if ($bibid <= 0 || $copyid <= 0) {
+            $errors[] = 'Dati copia non validi.';
+        } else {
+            try {
+                $stmt = $pdo->prepare('SELECT status_cd, mbrid FROM biblio_copy WHERE bibid = :b AND copyid = :c');
+                $stmt->execute([':b' => $bibid, ':c' => $copyid]);
+                $cur = $stmt->fetch(PDO::FETCH_ASSOC);
 
-                if ($newLoc !== '') {
-                    $pdo->prepare('UPDATE biblio SET call_nmbr1 = :l, last_change_dt = NOW() WHERE bibid = :b LIMIT 1')
-                        ->execute([':l' => $newLoc, ':b' => $bibid]);
+                if (!$cur) {
+                    $errors[] = 'Copia non trovata.';
+                } elseif ($cur['mbrid'] !== null && !in_array($newStatus, ['out', 'ln'], true)) {
+                    $errors[] = 'Copia in prestito: usa il modulo prestiti per restituirla.';
+                } else {
+                    $pdo->prepare('
+                        UPDATE biblio_copy
+                        SET status_cd = :s, status_begin_dt = NOW(), copy_desc = :d
+                        WHERE bibid = :b AND copyid = :c LIMIT 1
+                    ')->execute([':s' => $newStatus, ':d' => $newDesc !== '' ? $newDesc : null, ':b' => $bibid, ':c' => $copyid]);
+                    $messages[] = 'Copia #' . $copyid . ' aggiornata: stato → ' . h($statusLabels[$newStatus] ?? $newStatus) . '.';
                 }
-
-                $messages[] = 'Copia #' . $copyid . ' aggiornata: stato → ' . h($statusLabels[$newStatus] ?? $newStatus) . '.';
+            } catch (Throwable) {
+                $errors[] = 'Errore durante l\'aggiornamento.';
             }
-        } catch (Throwable) {
-            $errors[] = 'Errore durante l\'aggiornamento.';
         }
     }
 }
@@ -144,7 +133,6 @@ if ($qBarcode !== '' || ($qBibid !== '' && ctype_digit($qBibid))) {
     <div class="alert--error"><?php foreach ($errors as $m): ?><p><?= h($m) ?></p><?php endforeach; ?></div>
     <?php endif; ?>
 
-    <!-- Ricerca -->
     <div class="staff-block">
         <form method="get" action="<?= h($baseUrl) ?>/index.php" style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end;">
             <input type="hidden" name="page" value="staff_copies">
@@ -157,16 +145,11 @@ if ($qBarcode !== '' || ($qBibid !== '' && ctype_digit($qBibid))) {
                 <label for="q-bibid">BibID</label>
                 <input type="text" id="q-bibid" name="bibid" value="<?= h($qBibid) ?>" placeholder="es. 1234" inputmode="numeric">
             </div>
-            <div style="align-self:flex-end;">
-                <button type="submit" class="btn-primary">Cerca</button>
-            </div>
-            <div style="align-self:flex-end;">
-                <a class="btn-link" href="<?= h($baseUrl) ?>/index.php?page=staff">Dashboard</a>
-            </div>
+            <div style="align-self:flex-end;"><button type="submit" class="btn-primary">Cerca</button></div>
+            <div style="align-self:flex-end;"><a class="btn-link" href="<?= h($baseUrl) ?>/index.php?page=staff">Dashboard</a></div>
         </form>
     </div>
 
-    <!-- Risultati -->
     <?php if ($qBarcode !== '' || $qBibid !== ''): ?>
     <div class="staff-block">
         <?php if (empty($results)): ?>
@@ -176,14 +159,8 @@ if ($qBarcode !== '' || ($qBibid !== '' && ctype_digit($qBibid))) {
             <table class="copy-table">
                 <thead>
                     <tr>
-                        <th>Barcode</th>
-                        <th>BibID</th>
-                        <th>Titolo / Autore</th>
-                        <th>Stato attuale</th>
-                        <th>Prestatario</th>
-                        <th>Nuovo stato</th>
-                        <th>Nota copia</th>
-                        <th></th>
+                        <th>Barcode</th><th>BibID</th><th>Titolo / Autore</th>
+                        <th>Stato attuale</th><th>Prestatario</th><th colspan="3">Aggiorna</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -207,7 +184,10 @@ if ($qBarcode !== '' || ($qBibid !== '' && ctype_digit($qBibid))) {
                         <?php if ($inLoan): ?>
                         <small style="color:#9ca3af;">In prestito — usa il modulo prestiti per la restituzione</small>
                         <?php else: ?>
-                        <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_copies<?= ($qBarcode !== '' ? '&barcode=' . urlencode($qBarcode) : '&bibid=' . $bid) ?>" style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:flex-end;">
+                        <form method="post"
+                              action="<?= h($baseUrl) ?>/index.php?page=staff_copies<?= ($qBarcode !== '' ? '&barcode=' . urlencode($qBarcode) : '&bibid=' . $bid) ?>"
+                              style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:flex-end;">
+                            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                             <input type="hidden" name="bibid" value="<?= $bid ?>">
                             <input type="hidden" name="copyid" value="<?= $cid ?>">
                             <div class="copy-inline-field" style="flex:0 1 140px;">
@@ -222,7 +202,7 @@ if ($qBarcode !== '' || ($qBibid !== '' && ctype_digit($qBibid))) {
                             </div>
                             <div class="copy-inline-field" style="flex:1 1 140px;">
                                 <label>Nota</label>
-                                <input type="text" name="copy_desc" value="<?= h($row['copy_desc'] ?? '') ?>" placeholder="Nota facoltativa">
+                                <input type="text" name="copy_desc" value="<?= h($row['copy_desc'] ?? '') ?>">
                             </div>
                             <div class="copy-inline-actions">
                                 <button type="submit" class="btn-primary" style="padding:0.35rem 0.7rem;font-size:0.85rem;">Salva</button>

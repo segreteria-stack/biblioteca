@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 $title = 'Attiva il tuo account';
 
 if (session_status() === PHP_SESSION_NONE) {
@@ -41,7 +42,7 @@ if ($token === '') {
         $err = 'Link non valido o già utilizzato.';
     } else {
         $exp = (string)($row['reset_expires'] ?? '');
-        if ($exp === '' || strtotime($exp) === false || strtotime($exp) < time()) {
+        if ($exp === '' || (new DateTimeImmutable($exp))->getTimestamp() < time()) {
             $err = 'Il link è scaduto. Contatta la biblioteca per ricevere un nuovo invito.';
             $db->prepare("UPDATE patron_auth SET reset_token=NULL, reset_expires=NULL WHERE reset_token=?")
                ->execute([$token]);
