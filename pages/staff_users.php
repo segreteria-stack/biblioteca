@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($row) {
                 $newFlag = ($row['suspended_flg'] === 'Y') ? 'N' : 'Y';
-                $pdo->prepare('UPDATE staff SET suspended_flg = :f, last_change_dt = NOW() WHERE staffid = :id LIMIT 1')
+                $pdo->prepare('UPDATE staff SET suspended_flg = :f WHERE staffid = :id LIMIT 1')
                     ->execute([':f' => $newFlag, ':id' => $uid]);
                 $messages[] = 'Account ' . ($newFlag === 'Y' ? 'sospeso' : 'riattivato') . '.';
             }
@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare('
                 UPDATE staff
                 SET admin_flg = :a, circ_flg = :c, circ_mbr_flg = :cm,
-                    catalog_flg = :cat, reports_flg = :r, last_change_dt = NOW()
+                    catalog_flg = :cat, reports_flg = :r
                 WHERE staffid = :id LIMIT 1
             ')->execute([
                 ':a'   => (isset($_POST['admin_flg'])    && $_POST['admin_flg']    === 'Y') ? 'Y' : 'N',
@@ -107,7 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = 'Email non valida.';
         } else {
             try {
-                $pdo->prepare('UPDATE staff SET first_name = :fn, last_name = :ln, email = :em, last_change_dt = NOW() WHERE staffid = :id LIMIT 1')
+                $pdo->prepare('UPDATE staff SET first_name = :fn, last_name = :ln, email = :em WHERE staffid = :id LIMIT 1')
                     ->execute([':fn' => $fn !== '' ? $fn : null, ':ln' => $ln, ':em' => $email !== '' ? $email : null, ':id' => $uid]);
                 $messages[] = 'Dati anagrafici aggiornati.';
             } catch (Throwable) { $errors[] = 'Errore aggiornamento dati.'; }
@@ -123,8 +123,7 @@ $staffList = [];
 try {
     $staffList = $pdo->query('
         SELECT staffid, username, first_name, last_name, email,
-               suspended_flg, admin_flg, circ_flg, circ_mbr_flg, catalog_flg, reports_flg,
-               create_dt, last_change_dt
+               suspended_flg, admin_flg, circ_flg, circ_mbr_flg, catalog_flg, reports_flg
         FROM staff
         ORDER BY last_name, first_name, username
     ')->fetchAll(PDO::FETCH_ASSOC) ?: [];

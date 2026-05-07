@@ -94,20 +94,20 @@ try {
     $stmt = $pdo->prepare("
         SELECT topic, COUNT(*) AS cnt
         FROM (
-            SELECT topic1 AS topic FROM biblio WHERE topic1 IS NOT NULL AND topic1 <> '' AND topic1 LIKE :q
+            SELECT topic1 AS topic FROM biblio WHERE topic1 IS NOT NULL AND topic1 <> '' AND topic1 LIKE :q1
             UNION ALL
-            SELECT topic2 FROM biblio WHERE topic2 IS NOT NULL AND topic2 <> '' AND topic2 LIKE :q
+            SELECT topic2 FROM biblio WHERE topic2 IS NOT NULL AND topic2 <> '' AND topic2 LIKE :q2
             UNION ALL
-            SELECT topic3 FROM biblio WHERE topic3 IS NOT NULL AND topic3 <> '' AND topic3 LIKE :q
+            SELECT topic3 FROM biblio WHERE topic3 IS NOT NULL AND topic3 <> '' AND topic3 LIKE :q3
             UNION ALL
-            SELECT topic4 FROM biblio WHERE topic4 IS NOT NULL AND topic4 <> '' AND topic4 LIKE :q
+            SELECT topic4 FROM biblio WHERE topic4 IS NOT NULL AND topic4 <> '' AND topic4 LIKE :q4
             UNION ALL
-            SELECT topic5 FROM biblio WHERE topic5 IS NOT NULL AND topic5 <> '' AND topic5 LIKE :q
+            SELECT topic5 FROM biblio WHERE topic5 IS NOT NULL AND topic5 <> '' AND topic5 LIKE :q5
         ) t
         GROUP BY topic
         ORDER BY " . ($sort === 'cnt' ? 'cnt DESC, topic ASC' : 'topic ASC') . "
     ");
-    $stmt->execute([':q' => $filterPat]);
+    $stmt->execute([':q1' => $filterPat, ':q2' => $filterPat, ':q3' => $filterPat, ':q4' => $filterPat, ':q5' => $filterPat]);
     $topics = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 } catch (PDOException $e) {
     $errors[] = 'Errore caricamento soggetti.';
