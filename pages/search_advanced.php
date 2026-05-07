@@ -695,6 +695,8 @@ if ($whereSql !== '') {
         const rows = container.querySelectorAll('.adv-row');
         if (rows.length >= maxRows) return;
         const clone = rows[rows.length - 1].cloneNode(true);
+        // Rimuovi eventuali dropdown clonati e resetta il valore
+        clone.querySelectorAll('.ac-dropdown').forEach(el => el.remove());
         const input = clone.querySelector('input[name="value[]"]');
         if (input) input.value = '';
         const boolSelect = clone.querySelector('.adv-bool');

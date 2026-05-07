@@ -35,18 +35,28 @@ $anyPattern = '%' . $q . '%';
 $swPattern  = $q . '%';   // starts-with — usato per dare priorità
 $results    = [];
 
+// Tipo richiesto dal contesto (search_advanced passa il campo selezionato)
+$typeFilter = trim((string)($_GET['type'] ?? ''));
+$showTitle  = ($typeFilter === '' || $typeFilter === 'title');
+$showAuthor = ($typeFilter === '' || $typeFilter === 'author');
+$showTopic  = ($typeFilter === '' || $typeFilter === 'subject');
+
 function truncAc(string $s, int $max = 72): string {
     return mb_strlen($s, 'UTF-8') > $max ? mb_substr($s, 0, $max, 'UTF-8') . '…' : $s;
 }
 
 // ── Titoli (fino a 5, priorità "inizia con") ────────────────────────────────
-try {
+$titleLimit  = $typeFilter === 'title'   ? 8 : 5;
+$authorLimit = $typeFilter === 'author'  ? 8 : 3;
+$topicLimit  = $typeFilter === 'subject' ? 8 : 3;
+
+if ($showTitle) try {
     $st = $pdo->prepare("
         SELECT bibid, title, author
         FROM biblio
         WHERE title LIKE ? AND opac_flg = 'Y' AND title <> ''
         ORDER BY CASE WHEN title LIKE ? THEN 0 ELSE 1 END, title
-        LIMIT 5
+        LIMIT $titleLimit
     ");
     $st->execute([$anyPattern, $swPattern]);
     while ($row = $st->fetch(\PDO::FETCH_ASSOC)) {
@@ -62,13 +72,13 @@ try {
 } catch (\PDOException $e) {}
 
 // ── Autori (fino a 3, priorità "inizia con") ────────────────────────────────
-try {
+if ($showAuthor) try {
     $st = $pdo->prepare("
         SELECT DISTINCT author
         FROM biblio
         WHERE author LIKE ? AND opac_flg = 'Y' AND author <> ''
         ORDER BY CASE WHEN author LIKE ? THEN 0 ELSE 1 END, author
-        LIMIT 3
+        LIMIT $authorLimit
     ");
     $st->execute([$anyPattern, $swPattern]);
     while ($row = $st->fetch(\PDO::FETCH_ASSOC)) {
@@ -82,7 +92,7 @@ try {
 } catch (\PDOException $e) {}
 
 // ── Soggetti (fino a 3, per frequenza) ──────────────────────────────────────
-try {
+if ($showTopic) try {
     $st = $pdo->prepare("
         SELECT topic, COUNT(*) AS cnt
         FROM (
@@ -98,7 +108,7 @@ try {
         ) t
         GROUP BY topic
         ORDER BY CASE WHEN topic LIKE ? THEN 0 ELSE 1 END, cnt DESC, topic ASC
-        LIMIT 3
+        LIMIT $topicLimit
     ");
     $st->execute([$anyPattern, $anyPattern, $anyPattern, $anyPattern, $anyPattern, $swPattern]);
     while ($row = $st->fetch(\PDO::FETCH_ASSOC)) {

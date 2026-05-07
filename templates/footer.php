@@ -238,9 +238,21 @@ if (!empty($_SESSION['patron']) && is_array($_SESSION['patron'])) {
     }
 
     function doFetch(q) {
-      fetch(BASE + '/ajax_autocomplete.php?q=' + encodeURIComponent(q), {
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-      })
+      // Se siamo in una riga di search_advanced, leggi il campo selezionato
+      var url = BASE + '/ajax_autocomplete.php?q=' + encodeURIComponent(q);
+      var advRow = input.closest('.adv-row');
+      if (advRow) {
+        var fieldSel = advRow.querySelector('select.adv-field');
+        if (fieldSel) {
+          var f = fieldSel.value;
+          // isbn e publisher non hanno suggerimenti utili
+          if (f === 'isbn' || f === 'publisher') { close(); return; }
+          if (f === 'title' || f === 'author' || f === 'subject') {
+            url += '&type=' + encodeURIComponent(f);
+          }
+        }
+      }
+      fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function(r) { return r.json(); })
       .then(function(d) { if (d.ok) render(d.suggestions); })
       .catch(function() {});
