@@ -168,9 +168,9 @@ function fmt_metric(int $n): string
                     </div>
                 </li>
 
-                <li class="staff-card-item staff-card-item--prep">
+                <li class="staff-card-item staff-card-item--active">
                     <div class="staff-card-item-body">
-                        <span class="staff-link-static">Gestione soggetti / tag <span class="staff-feature-pill">in preparazione</span></span>
+                        <a href="<?= h($baseUrl) ?>/index.php?page=staff_topics">Gestione soggetti / tag</a>
                         <p class="staff-card-note">Interfaccia per visualizzare, aggiungere o modificare i soggetti usati in "Esplora per tema".</p>
                     </div>
                 </li>
@@ -227,9 +227,9 @@ function fmt_metric(int $n): string
                     </div>
                 </li>
 
-                <li class="staff-card-item staff-card-item--prep">
+                <li class="staff-card-item staff-card-item--active">
                     <div class="staff-card-item-body">
-                        <span class="staff-link-static">Aggiornamento disponibilità copie <span class="staff-feature-pill">in preparazione</span></span>
+                        <a href="<?= h($baseUrl) ?>/index.php?page=staff_copies">Aggiornamento disponibilità copie</a>
                         <p class="staff-card-note">Modifica rapida dello stato copia (disponibile / in prestito) e della collocazione fisica.</p>
                     </div>
                 </li>
@@ -258,9 +258,9 @@ function fmt_metric(int $n): string
                     </div>
                 </li>
 
-                <li class="staff-card-item staff-card-item--prep">
+                <li class="staff-card-item staff-card-item--active">
                     <div class="staff-card-item-body">
-                        <span class="staff-link-static">Elenco account staff <span class="staff-feature-pill">in preparazione</span></span>
+                        <a href="<?= h($baseUrl) ?>/index.php?page=staff_users">Elenco account staff</a>
                         <p class="staff-card-note">Vista completa degli operatori registrati con modifica e reset password.</p>
                     </div>
                 </li>
@@ -272,9 +272,9 @@ function fmt_metric(int $n): string
                     </div>
                 </li>
 
-                <li class="staff-card-item staff-card-item--prep">
+                <li class="staff-card-item staff-card-item--active">
                     <div class="staff-card-item-body">
-                        <span class="staff-link-static">Log di sistema <span class="staff-feature-pill">in preparazione</span></span>
+                        <a href="<?= h($baseUrl) ?>/index.php?page=staff_log">Log di sistema</a>
                         <p class="staff-card-note">Cronologia delle modifiche rilevanti: creazione e modifica record, prestiti, importazioni MARC.</p>
                     </div>
                 </li>
