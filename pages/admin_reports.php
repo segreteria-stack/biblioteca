@@ -141,6 +141,8 @@ if (!array_key_exists($tab, $allowedTabs)) $tab = 'checkouts';
 
 $print  = (string)($_GET['print'] ?? '') === '1';
 $export = (string)($_GET['export'] ?? '') === 'csv';
+$orient = (string)($_GET['orient'] ?? '');
+$orient = in_array($orient, ['landscape', 'portrait'], true) ? $orient : 'portrait';
 $q      = trim((string)($_GET['q'] ?? ''));
 
 $page    = int_or_default($_GET['p'] ?? 1, 1);
@@ -238,8 +240,9 @@ $printRowsPerPage = match ($tab) {
     default                => 32,
 };
 
-$printHref = $indexUrl . qs(['page' => 'admin_reports', 'print' => '1', 'export' => null, 'p' => null]);
-$csvHref   = $indexUrl . qs(['page' => 'admin_reports', 'export' => 'csv', 'print' => null, 'p' => null]);
+$printHref    = $indexUrl . qs(['page' => 'admin_reports', 'print' => '1', 'export' => null, 'p' => null, 'orient' => 'portrait']);
+$printHrefLsc = $indexUrl . qs(['page' => 'admin_reports', 'print' => '1', 'export' => null, 'p' => null, 'orient' => 'landscape']);
+$csvHref      = $indexUrl . qs(['page' => 'admin_reports', 'export' => 'csv', 'print' => null, 'p' => null]);
 
 try {
     if ($tab === 'checkouts' || $tab === 'overdue') {
@@ -560,14 +563,32 @@ if ($dateFrom !== '' || $dateTo !== '') {
 }
 
 .print-report-head { margin-bottom: 8px; }
+.print-report-head-top { display:none; } /* visibile solo in @media print */
+.print-org-name { font-size: .9rem; font-weight: 700; }
 .print-report-head h2 { margin: 0 0 2px 0; font-size: 1.05rem; font-weight: 600; }
 .print-report-head .meta { font-size: .86rem; color: #333; }
+.print-orient-badge { display:none; }
 .print-page-break { display:none; }
 
 /* ============================================================
    PRINT — tabella con bordi completi e font ridotto
    ============================================================ */
 @media print {
+  @page {
+    size: <?= $orient === 'landscape' ? 'A4 landscape' : 'A4 portrait' ?>;
+    margin: 12mm 10mm 16mm 10mm;
+    @bottom-right {
+      content: "Pagina " counter(page) " / " counter(pages);
+      font-size: 7pt;
+      color: #555;
+    }
+    @bottom-left {
+      content: "Biblioteca della Resistenza — ANPI Udine";
+      font-size: 7pt;
+      color: #555;
+    }
+  }
+
   header, nav, footer, .site-header, .site-footer, .topbar, .utility-bar { display:none !important; }
   .reports-no-print { display:none !important; }
   .page-section { padding:0 !important; margin:0 !important; border:none !important; }
@@ -587,10 +608,11 @@ if ($dateFrom !== '' || $dateTo !== '') {
   }
   .reports-table {
     border-collapse: collapse !important;
+    width: 100% !important;
   }
   .reports-table th, .reports-table td {
     border: 0.75pt solid #000 !important;
-    padding: 4px 5px !important;
+    padding: 3px 5px !important;
     vertical-align: top !important;
   }
   .reports-table th {
@@ -607,6 +629,15 @@ if ($dateFrom !== '' || $dateTo !== '') {
 
   .print-page-break { display:block; page-break-before: always; }
   a { color:#000 !important; text-decoration:none !important; }
+
+  /* intestazione stampa */
+  .print-report-head { margin-bottom: 10px; border-bottom: 1pt solid #555; padding-bottom: 6px; }
+  .print-report-head-top { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .print-report-head-top img { height: 36px; width: auto; }
+  .print-org-name { font-size: 9pt; font-weight: 700; }
+  .print-report-head h2 { font-size: 11pt !important; font-weight: 700; margin: 2px 0 2px 0; }
+  .print-report-head .meta { font-size: 7.5pt; color: #333; }
+  .print-orient-badge { display:inline-block; font-size:7pt; border:0.5pt solid #888; padding:1px 4px; margin-left:6px; color:#555; }
 }
 </style>
 
@@ -641,18 +672,28 @@ if ($dateFrom !== '' || $dateTo !== '') {
           <a class="button" href="<?= hstr($indexUrl . '?page=admin_loans') ?>">📘 Prestiti</a>
         </div>
         <div class="reports-actions">
-          <a class="button" href="<?= hstr($printHref) ?>">🖨️ Stampa / PDF</a>
+          <a class="button" href="<?= hstr($printHref) ?>" title="Stampa in verticale (A4 Portrait)">🖨️ Stampa verticale</a>
+          <a class="button" href="<?= hstr($printHrefLsc) ?>" title="Stampa in orizzontale (A4 Landscape) — consigliato per tabelle larghe">🖨️ Stampa orizzontale</a>
           <a class="button" href="<?= hstr($csvHref) ?>">⬇️ Export CSV</a>
         </div>
       </div>
 
       <?php if ($print): ?>
         <div class="print-report-head">
-          <h2><?= hstr($title) ?></h2>
+          <div class="print-report-head-top">
+            <img src="<?= hstr($baseUrl . '/public/assets/logo.png') ?>" alt="Logo biblioteca">
+            <span class="print-org-name">Biblioteca della Resistenza — ANPI Udine</span>
+          </div>
+          <h2>
+            <?= hstr($title) ?>
+            <span class="print-orient-badge"><?= $orient === 'landscape' ? 'Orizzontale' : 'Verticale' ?></span>
+          </h2>
           <div class="meta">
-            Stampato il <?= h(date('d-m-Y H:i')) ?> — Operatore: <?= hstr($staffName) ?>
-            <?php if ($q !== ''): ?> — Filtro: "<?= hstr($q) ?>"<?php endif; ?>
-            <?php if ($periodLabel !== ''): ?> — Periodo: <?= hstr($periodLabel) ?><?php endif; ?>
+            Stampato il <?= h(date('d/m/Y H:i')) ?>
+            &nbsp;·&nbsp; Operatore: <?= hstr($staffName) ?>
+            &nbsp;·&nbsp; Righe: <?= (int)count($dataRows) ?><?php if ($totalRows > count($dataRows)): ?> di <?= (int)$totalRows ?><?php endif; ?>
+            <?php if ($q !== ''): ?> &nbsp;·&nbsp; Filtro: "<?= hstr($q) ?>"<?php endif; ?>
+            <?php if ($periodLabel !== ''): ?> &nbsp;·&nbsp; Periodo: <?= hstr($periodLabel) ?><?php endif; ?>
           </div>
         </div>
         <script>window.addEventListener('load', function () { window.print(); });</script>
