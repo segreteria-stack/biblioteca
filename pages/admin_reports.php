@@ -540,6 +540,13 @@ if ($dateFrom !== '' || $dateTo !== '') {
 .reports-table--loans th:nth-child(4), .reports-table--loans td:nth-child(4) { width: 22%; }
 .reports-table--loans th:nth-child(5), .reports-table--loans td:nth-child(5) { width: 12%; }
 
+.reports-table--unavail th:nth-child(1), .reports-table--unavail td:nth-child(1) { width: 16%; }
+.reports-table--unavail th:nth-child(2), .reports-table--unavail td:nth-child(2) { width: 13%; }
+.reports-table--unavail th:nth-child(3), .reports-table--unavail td:nth-child(3) { width: 9%; white-space: nowrap; }
+.reports-table--unavail th:nth-child(4), .reports-table--unavail td:nth-child(4) { width: 35%; }
+.reports-table--unavail th:nth-child(5), .reports-table--unavail td:nth-child(5) { width: 18%; }
+.reports-table--unavail th:nth-child(6), .reports-table--unavail td:nth-child(6) { width: 9%; white-space: nowrap; }
+
 .reports-table--acq th:nth-child(1), .reports-table--acq td:nth-child(1) { width: 14%; }
 .reports-table--acq th:nth-child(2), .reports-table--acq td:nth-child(2) { width: 18%; }
 .reports-table--acq th:nth-child(3), .reports-table--acq td:nth-child(3) { width: 54%; }
@@ -817,7 +824,7 @@ if ($dateFrom !== '' || $dateTo !== '') {
             $thead = ['BIBID','Titolo / Autore','Copie','OPAC','Inserito'];
         } elseif ($tab === 'unavailable') {
             $thead = ['Stato','Collocazione','Copia','Titolo / Autore','Prestatario','Scadenza'];
-            $tableClass = 'reports-table--loans';
+            $tableClass = 'reports-table--unavail';
         } elseif ($tab === 'duplicates') {
             $thead = [];
         }
