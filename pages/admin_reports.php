@@ -135,6 +135,7 @@ $allowedTabs = [
     'acquisitions'    => 'Acquisizioni',
     'orphan_titles'   => 'Senza collocazione',
     'duplicates'      => 'Duplicati potenziali',
+    'unavailable'     => 'Non disponibili',
 ];
 if (!array_key_exists($tab, $allowedTabs)) $tab = 'checkouts';
 
@@ -196,6 +197,7 @@ function order_by_for(string $tab, string $sort, string $dir): string
         'acquisitions'    => ['date' => 'b.create_dt', 'call' => 'b.call_nmbr1', 'title' => 'b.title'],
         'orphan_titles'   => ['title' => 'b.title', 'date' => 'b.create_dt', 'copies' => 'copy_count'],
         'duplicates'      => [],
+        'unavailable'     => ['status' => 's.description', 'title' => 'b.title', 'call' => 'b.call_nmbr1', 'due' => 'c.due_back_dt'],
     ];
     $m = $maps[$tab] ?? [];
     if ($sort === '' || !isset($m[$sort])) {
@@ -205,6 +207,7 @@ function order_by_for(string $tab, string $sort, string $dir): string
             'popular_authors'      => 'ORDER BY cnt DESC, author ASC',
             'acquisitions'         => 'ORDER BY b.create_dt DESC, b.title ASC',
             'orphan_titles'        => 'ORDER BY b.create_dt DESC, b.title ASC',
+            'unavailable'          => 'ORDER BY s.description ASC, b.title ASC',
             default                => 'ORDER BY 1',
         };
     }
@@ -228,7 +231,7 @@ $limitExport = 5000;
 $limitPrint  = 2000;
 
 $printRowsPerPage = match ($tab) {
-    'checkouts', 'overdue' => 30,
+    'checkouts', 'overdue', 'unavailable' => 30,
     'acquisitions'         => 34,
     'popular_titles',
     'popular_authors'      => 44,
@@ -385,6 +388,49 @@ try {
             csv_out('titoli_senza_collocazione_' . date('Ymd_His') . '.csv', $csvHeader, $csvRows);
         }
 
+    } elseif ($tab === 'unavailable') {
+        $where  = "c.status_cd <> 'in'";
+        $params = [];
+        if ($q !== '') {
+            $where .= ' AND (b.title LIKE :q1 OR b.author LIKE :q2 OR c.barcode_nmbr LIKE :q3 OR s.description LIKE :q4)';
+            $qPat = '%' . $q . '%';
+            $params += [':q1' => $qPat, ':q2' => $qPat, ':q3' => $qPat, ':q4' => $qPat];
+        }
+        $st = $db->prepare("SELECT COUNT(*) AS cnt FROM biblio_copy c INNER JOIN biblio b ON b.bibid = c.bibid INNER JOIN biblio_status_dm s ON s.code = c.status_cd LEFT JOIN member m ON m.mbrid = c.mbrid WHERE $where");
+        $st->execute($params);
+        $totalRows = (int)($st->fetch(PDO::FETCH_ASSOC)['cnt'] ?? 0);
+
+        $orderBy = order_by_for($tab, $sort, strtoupper($dir));
+        $sqlData = "SELECT c.bibid, c.copyid, c.barcode_nmbr AS copy_barcode, c.status_cd, c.due_back_dt, s.description AS status_desc, b.title, b.author, b.call_nmbr1, b.call_nmbr2, b.call_nmbr3, m.mbrid, m.last_name, m.first_name, m.barcode_nmbr AS patron_barcode FROM biblio_copy c INNER JOIN biblio b ON b.bibid = c.bibid INNER JOIN biblio_status_dm s ON s.code = c.status_cd LEFT JOIN member m ON m.mbrid = c.mbrid WHERE $where $orderBy";
+        $limit = $print ? $limitPrint : ($export ? $limitExport : $limitNormal);
+        if (!$print && !$export) $sqlData .= " LIMIT :lim OFFSET :off";
+        else $sqlData .= " LIMIT " . (int)$limit;
+
+        $st = $db->prepare($sqlData);
+        foreach ($params as $k => $v) $st->bindValue($k, $v, PDO::PARAM_STR);
+        if (!$print && !$export) { $st->bindValue(':lim', $limit, PDO::PARAM_INT); $st->bindValue(':off', $offset, PDO::PARAM_INT); }
+        $st->execute();
+        $dataRows = $st->fetchAll(PDO::FETCH_ASSOC);
+
+        if ($export) {
+            $csvHeader = ['Stato', 'Collocazione', 'Barcode copia', 'Titolo', 'Autore', 'Prestatario', 'Tessera', 'Scadenza', 'BIBID', 'CopyID'];
+            foreach ($dataRows as $r) {
+                $csvRows[] = [
+                    (string)($r['status_desc'] ?? $r['status_cd'] ?? ''),
+                    build_callno($r),
+                    (string)($r['copy_barcode'] ?? ''),
+                    (string)($r['title'] ?? ''),
+                    (string)($r['author'] ?? ''),
+                    trim((string)($r['last_name'] ?? '') . ' ' . (string)($r['first_name'] ?? '')),
+                    (string)($r['patron_barcode'] ?? ''),
+                    (string)($r['due_back_dt'] ?? ''),
+                    (string)($r['bibid'] ?? ''),
+                    (string)($r['copyid'] ?? ''),
+                ];
+            }
+            csv_out('copie_non_disponibili_' . date('Ymd_His') . '.csv', $csvHeader, $csvRows);
+        }
+
     } elseif ($tab === 'duplicates') {
         // ISBN duplicates: multiple biblio records sharing the same 020$a value
         $stDupIsbn = $db->query("
@@ -501,6 +547,12 @@ if ($dateFrom !== '' || $dateTo !== '') {
   border:1px solid rgba(0,0,0,.18); font-weight:500; white-space: nowrap;
 }
 .reports-badge--overdue { border-color:#b91c22; color:#b91c22; font-weight:600; }
+.reports-badge--out  { border-color:#b45309; color:#b45309; font-weight:600; }
+.reports-badge--hld  { border-color:#1d4ed8; color:#1d4ed8; font-weight:600; }
+.reports-badge--ln   { border-color:#6d28d9; color:#6d28d9; font-weight:600; }
+.reports-badge--mnd  { border-color:#0369a1; color:#0369a1; font-weight:600; }
+.reports-badge--dis  { border-color:#4b5563; color:#4b5563; font-weight:600; }
+.reports-badge--lst  { border-color:#b91c22; color:#b91c22; font-weight:600; }
 
 .reports-footerbar {
   display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:center;
@@ -659,6 +711,7 @@ if ($dateFrom !== '' || $dateTo !== '') {
               'popular_authors'      => ['count'=>'Prestiti','author'=>'Autore'],
               'acquisitions'         => ['date'=>'Data creazione','call'=>'Collocazione','title'=>'Titolo'],
               'orphan_titles'        => ['title'=>'Titolo','date'=>'Data creazione','copies'=>'Copie'],
+              'unavailable'          => ['status'=>'Stato','title'=>'Titolo','call'=>'Collocazione','due'=>'Scadenza'],
               default                => []
             };
           ?>
@@ -681,7 +734,7 @@ if ($dateFrom !== '' || $dateTo !== '') {
             </div>
           <?php endif; ?>
 
-          <?php if (!$print && !$export && in_array($tab, ['checkouts','overdue','acquisitions','orphan_titles'], true)): ?>
+          <?php if (!$print && !$export && in_array($tab, ['checkouts','overdue','acquisitions','orphan_titles','unavailable'], true)): ?>
             <div class="field">
               <label>Per pagina</label>
               <select class="input" name="pp">
@@ -721,6 +774,9 @@ if ($dateFrom !== '' || $dateTo !== '') {
             $tableClass = 'reports-table--acq';
         } elseif ($tab === 'orphan_titles') {
             $thead = ['BIBID','Titolo / Autore','Copie','OPAC','Inserito'];
+        } elseif ($tab === 'unavailable') {
+            $thead = ['Stato','Collocazione','Copia','Titolo / Autore','Prestatario','Scadenza'];
+            $tableClass = 'reports-table--loans';
         } elseif ($tab === 'duplicates') {
             $thead = [];
         }
@@ -729,7 +785,7 @@ if ($dateFrom !== '' || $dateTo !== '') {
       <div class="reports-meta">
         <strong style="font-weight:600;"><?= hstr($title) ?></strong>
         — Risultati: <strong style="font-weight:600;"><?= (int)$totalRows ?></strong>
-        <?php if (!$print && !$export && in_array($tab, ['checkouts','overdue','acquisitions'], true)): ?>
+        <?php if (!$print && !$export && in_array($tab, ['checkouts','overdue','acquisitions','unavailable'], true)): ?>
           — pagina <?= (int)$page ?> di <?= (int)$totalPages ?>
         <?php endif; ?>
         <?php if ($periodLabel !== ''): ?> — periodo: <?= hstr($periodLabel) ?><?php endif; ?>
@@ -862,6 +918,65 @@ if ($dateFrom !== '' || $dateTo !== '') {
                 <?php $rowInPage++; ?>
               <?php endforeach; ?>
 
+            <?php elseif ($tab === 'unavailable'): ?>
+              <?php foreach ($dataRows as $r): ?>
+                <?php if ($print && $rowInPage > 0 && $rowInPage % $printRowsPerPage === 0) $openNewPrintPage(); ?>
+                <?php
+                  $statusCd   = (string)($r['status_cd'] ?? '');
+                  $statusDesc = trim((string)($r['status_desc'] ?? $statusCd));
+                  $call       = build_callno($r);
+                  $copy       = trim((string)($r['copy_barcode'] ?? ''));
+                  $titleTxt   = trim((string)($r['title'] ?? ''));
+                  $authorTxt  = trim((string)($r['author'] ?? ''));
+                  $patron     = build_patron_label($r);
+                  $dueIso     = trim((string)($r['due_back_dt'] ?? ''));
+                  $dueIt      = fmt_date_it($dueIso);
+                  $isOver     = ($dueIso !== '' && $dueIso < date('Y-m-d'));
+                  $statusBadgeClass = match ($statusCd) {
+                      'out' => 'reports-badge--out',
+                      'hld' => 'reports-badge--hld',
+                      'ln'  => 'reports-badge--ln',
+                      'mnd' => 'reports-badge--mnd',
+                      'dis' => 'reports-badge--dis',
+                      'lst' => 'reports-badge--lst',
+                      default => '',
+                  };
+                ?>
+                <tr>
+                  <td>
+                    <span class="reports-badge <?= hstr($statusBadgeClass) ?>"><?= hstr($statusDesc !== '' ? $statusDesc : $statusCd) ?></span>
+                  </td>
+                  <td>
+                    <div style="font-weight:600;"><?= hstr($call !== '' ? $call : '—') ?></div>
+                    <div class="muted">BIBID <?= hstr($r['bibid'] ?? '') ?> / Copia <?= hstr($r['copyid'] ?? '') ?></div>
+                  </td>
+                  <td>
+                    <div style="font-weight:600;"><?= hstr($copy !== '' ? $copy : '—') ?></div>
+                    <div class="muted">Barcode</div>
+                  </td>
+                  <td>
+                    <div style="font-weight:600;"><?= hstr($titleTxt) ?></div>
+                    <div class="muted"><?= hstr($authorTxt) ?></div>
+                  </td>
+                  <td>
+                    <?php if ($patron !== '—'): ?>
+                      <div style="font-weight:600;"><?= hstr($patron) ?></div>
+                      <div class="muted">MBRID <?= hstr($r['mbrid'] ?? '') ?></div>
+                    <?php else: ?>
+                      <span class="muted">—</span>
+                    <?php endif; ?>
+                  </td>
+                  <td>
+                    <?php if ($dueIt === ''): ?>
+                      <span class="reports-badge">—</span>
+                    <?php else: ?>
+                      <span class="reports-badge <?= $isOver ? 'reports-badge--overdue' : '' ?>"><?= hstr($dueIt) ?></span>
+                    <?php endif; ?>
+                  </td>
+                </tr>
+                <?php $rowInPage++; ?>
+              <?php endforeach; ?>
+
             <?php elseif ($tab === 'duplicates'): ?>
             <?php endif; ?>
           <?php endif; ?>
@@ -906,7 +1021,7 @@ if ($dateFrom !== '' || $dateTo !== '') {
         ?>
       <?php endif; ?>
 
-      <?php if (!$print && !$export && $totalPages > 1 && in_array($tab, ['checkouts','overdue','acquisitions','orphan_titles'], true)): ?>
+      <?php if (!$print && !$export && $totalPages > 1 && in_array($tab, ['checkouts','overdue','acquisitions','orphan_titles','unavailable'], true)): ?>
         <div class="reports-footerbar reports-no-print">
           <div class="reports-meta">Pagina <?= (int)$page ?> di <?= (int)$totalPages ?></div>
           <div class="reports-actions">
