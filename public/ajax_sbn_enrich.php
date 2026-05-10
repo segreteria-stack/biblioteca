@@ -176,6 +176,22 @@ function nextBarcode(\PDO $pdo, int $bibid): array
     return [$copyid, $barcode];
 }
 
+/**
+ * Popola (o aggiorna) biblio_index_ext con ISBN, anno, editore, luogo.
+ * Usata da search_advanced.php e item.php per la ricerca avanzata.
+ */
+function syncIndexExt(\PDO $pdo, int $bibid, string $isbn, string $pubYear, string $publisher, string $pubPlace): void
+{
+    $year = (int)preg_replace('/[^0-9]/', '', substr($pubYear, 0, 4));
+    $pdo->prepare('INSERT INTO biblio_index_ext (bibid,isbn,pub_year,publisher,pub_place)
+                   VALUES (?,?,?,?,?)
+                   ON DUPLICATE KEY UPDATE
+                     isbn=VALUES(isbn), pub_year=VALUES(pub_year),
+                     publisher=VALUES(publisher), pub_place=VALUES(pub_place)')
+        ->execute([$bibid, $isbn !== '' ? $isbn : null, $year > 0 ? $year : null,
+                   $publisher !== '' ? $publisher : null, $pubPlace !== '' ? $pubPlace : null]);
+}
+
 /* ================================================================
  * Azione: test_connection
  * ================================================================ */
@@ -407,6 +423,9 @@ if ($action === 'import_record') {
         $pdo->prepare("INSERT INTO biblio_copy (bibid, copyid, barcode_nmbr, status_cd, create_dt, status_begin_dt, renewal_count) VALUES (?, ?, ?, 'in', NOW(), NOW(), 0)")
             ->execute([$bibid, $copyid, $barcode]);
         $inserted[] = 'copia';
+
+        syncIndexExt($pdo, $bibid, (string)($data['isbn_sbn'] ?? ''), (string)($data['anno'] ?? ''),
+                     (string)($data['editore'] ?? ''), (string)($data['luogo'] ?? ''));
 
         echo json_encode([
             'ok'      => true,
@@ -1242,23 +1261,27 @@ if ($action === 'import_record_with_data') {
         $barcode = trim($data['barcode']    ?? '');
         $status  = trim($data['status_cd']  ?? 'in') ?: 'in';
 
-        // Se barcode vuoto, genera automatico
-        if ($barcode === '') {
-            $barcode = 'SBN-' . $bid . '-001';
+        // Se barcode vuoto o troppo lungo, genera automatico bibid+copyid (max 7 cifre, nel varchar 20)
+        [$copyid, $autoBarcode] = nextBarcode($pdo, $bibid);
+        if ($barcode === '' || strlen($barcode) > 20) {
+            $barcode = $autoBarcode;
         }
 
         $insCopy = $pdo->prepare("
-            INSERT INTO biblio_copy 
-                (bibid, barcode_nmbr, status_cd, create_dt, status_begin_dt, renewal_count)
-            VALUES (?, ?, ?, NOW(), NOW(), 0)
+            INSERT INTO biblio_copy
+                (bibid, copyid, barcode_nmbr, status_cd, create_dt, status_begin_dt, renewal_count)
+            VALUES (?, ?, ?, ?, NOW(), NOW(), 0)
         ");
         $insCopy->execute([
             $bibid,
+            $copyid,
             $barcode,
             $status,
         ]);
-        $copyid = (int)$pdo->lastInsertId();
         $inserted[] = 'copia';
+
+        syncIndexExt($pdo, $bibid, (string)($data['isbn'] ?? ''), (string)($data['anno'] ?? ''),
+                     (string)($data['editore'] ?? ''), (string)($data['luogo'] ?? ''));
 
         echo json_encode([
             'ok'       => true,

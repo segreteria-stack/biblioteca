@@ -152,7 +152,7 @@ function ncn_add_field(PDO $pdo, int $bibid, int $tag, string $sub, string $val)
 {
     $val = trim($val);
     if ($val === '') return;
-    $pdo->prepare('INSERT INTO biblio_field (bibid,tag,subfield_cd,field_data) VALUES (?,?,?,?)')
+    $pdo->prepare('INSERT INTO biblio_field (bibid,tag,ind1_cd,ind2_cd,subfield_cd,field_data) VALUES (?,?,NULL,NULL,?,?)')
         ->execute([$bibid, $tag, $sub, $val]);
 }
 
@@ -191,6 +191,18 @@ function ncn_next_barcode(PDO $pdo, int $bibid): array
     $barcode = str_pad((string)$bibid, 5, '0', STR_PAD_LEFT)
              . str_pad((string)$copyid, 2, '0', STR_PAD_LEFT);
     return [$copyid, $barcode];
+}
+
+function ncn_sync_index_ext(PDO $pdo, int $bibid, string $isbn, string $pubYear, string $publisher, string $pubPlace): void
+{
+    $year = (int)preg_replace('/[^0-9]/', '', substr($pubYear, 0, 4));
+    $pdo->prepare('INSERT INTO biblio_index_ext (bibid,isbn,pub_year,publisher,pub_place)
+                   VALUES (?,?,?,?,?)
+                   ON DUPLICATE KEY UPDATE
+                     isbn=VALUES(isbn), pub_year=VALUES(pub_year),
+                     publisher=VALUES(publisher), pub_place=VALUES(pub_place)')
+        ->execute([$bibid, $isbn !== '' ? $isbn : null, $year > 0 ? $year : null,
+                   $publisher !== '' ? $publisher : null, $pubPlace !== '' ? $pubPlace : null]);
 }
 
 // ============================================================
@@ -281,6 +293,7 @@ if ($method === 'manual') {
                 ncn_add_field($pdo, $manualBibid, $tag, $sub, $val);
             }
 
+            ncn_sync_index_ext($pdo, $manualBibid, $manualData['isbn'], $manualData['pub_year'], $manualData['publisher'], '');
             $pdo->commit();
             $manualSuccess = true;
             foreach (array_keys($manualData) as $k) $manualData[$k] = '';
@@ -374,14 +387,18 @@ if ($method === 'file_import') {
         $year   = ncn_year_from_pub($pub);
         $topics = ncn_topics($subj);
 
-        // default material/collection dal primo record esistente
+        // default material/collection da tabelle dominio (stesso criterio del metodo MARCXML)
         $defMat = $defCol = '';
         try {
-            $row = $pdo->query('SELECT material_cd,collection_cd FROM biblio ORDER BY bibid LIMIT 1')->fetch(PDO::FETCH_ASSOC);
-            if ($row) { $defMat = (string)$row['material_cd']; $defCol = (string)$row['collection_cd']; }
+            $r = $pdo->query("SELECT code FROM material_type_dm WHERE default_flg='Y' ORDER BY code LIMIT 1")->fetch(\PDO::FETCH_ASSOC);
+            if (!$r) $r = $pdo->query("SELECT code FROM material_type_dm ORDER BY code LIMIT 1")->fetch(\PDO::FETCH_ASSOC);
+            if ($r) $defMat = (string)(int)$r['code'];
+            $r = $pdo->query("SELECT code FROM collection_dm WHERE default_flg='Y' ORDER BY code LIMIT 1")->fetch(\PDO::FETCH_ASSOC);
+            if (!$r) $r = $pdo->query("SELECT code FROM collection_dm ORDER BY code LIMIT 1")->fetch(\PDO::FETCH_ASSOC);
+            if ($r) $defCol = (string)(int)$r['code'];
         } catch (\PDOException $e) {}
-        if ($defMat === '') $defMat = 'b';
-        if ($defCol === '') $defCol = 'GEN';
+        if ($defMat === '') $defMat = '1';
+        if ($defCol === '') $defCol = '1';
 
         try {
             $pdo->beginTransaction();
@@ -424,6 +441,15 @@ if ($method === 'file_import') {
                 $s = trim((string)preg_replace('/\$\w/', '', $s));
                 if ($s !== '') ncn_add_field($pdo, $fileNewBibid, 650, 'a', $s);
             }
+
+            // popola biblio_index_ext per ricerca avanzata
+            $pparts_s = ($pub !== '') ? preg_split('/\s*:\s*/', $pub) : [];
+            ncn_sync_index_ext($pdo, $fileNewBibid, $isbn, $year, $pparts_s[1] ?? '', $pparts_s[0] ?? '');
+
+            // crea copia fisica (tutti gli altri metodi lo fanno)
+            [$copyid, $barcode] = ncn_next_barcode($pdo, $fileNewBibid);
+            $pdo->prepare('INSERT INTO biblio_copy (bibid,copyid,create_dt,barcode_nmbr,status_cd,status_begin_dt,renewal_count) VALUES (?,?,NOW(),?,\'in\',NOW(),0)')
+                ->execute([$fileNewBibid, $copyid, $barcode]);
 
             $pdo->commit();
             $fileStep    = 3;
@@ -545,6 +571,8 @@ if ($method === 'marcxml') {
                         [$copyid, $barcode] = ncn_next_barcode($pdo, $bibid);
                         $insC->execute([$bibid, $copyid, $barcode]);
                     }
+
+                    ncn_sync_index_ext($pdo, $bibid, $isbn ?? '', $pubAnno, $pubEdit, $pubPlace);
                     $marcCount++;
                 }
                 $pdo->commit();
