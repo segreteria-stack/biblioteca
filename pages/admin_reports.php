@@ -579,23 +579,17 @@ if ($dateFrom !== '' || $dateTo !== '') {
 
 /* ============================================================
    PRINT — tabella con bordi completi e font ridotto
+   @page è a livello top (non dentro @media print!) per evitare
+   CSS non valido che causa pagine bianche e logo scomparso
    ============================================================ */
-@media print {
-  @page {
-    size: <?= $orient === 'landscape' ? 'A4 landscape' : 'A4 portrait' ?>;
-    margin: 12mm 10mm 16mm 10mm;
-    @bottom-right {
-      content: "Pagina " counter(page) " / " counter(pages);
-      font-size: 7pt;
-      color: #555;
-    }
-    @bottom-left {
-      content: "Biblioteca della Resistenza — ANPI Udine";
-      font-size: 7pt;
-      color: #555;
-    }
-  }
+<?php if ($print): ?>
+@page {
+  size: <?= $orient === 'landscape' ? 'A4 landscape' : 'A4 portrait' ?>;
+  margin: 12mm 10mm 14mm 10mm;
+}
+<?php endif; ?>
 
+@media print {
   header, nav, footer, .site-header, .site-footer, .topbar, .utility-bar { display:none !important; }
   .reports-no-print { display:none !important; }
   .page-section { padding:0 !important; margin:0 !important; border:none !important; }
@@ -632,15 +626,16 @@ if ($dateFrom !== '' || $dateTo !== '') {
   .reports-badge--overdue { color: #000 !important; font-weight: 700 !important; }
 
   thead { display: table-header-group; }
-  tr, td, th { page-break-inside: avoid; }
+  tr, td, th { page-break-inside: avoid; break-inside: avoid; }
 
-  .print-page-break { display:block; page-break-before: always; }
+  /* salto pagina: break-before è la proprietà moderna, page-break-before è il fallback */
+  .print-page-break { display:block; page-break-before: always; break-before: page; margin:0; padding:0; height:0; border:none; }
   a { color:#000 !important; text-decoration:none !important; }
 
   /* intestazione stampa */
   .print-report-head { margin-bottom: 10px; border-bottom: 1pt solid #555; padding-bottom: 6px; }
-  .print-report-head-top { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
-  .print-report-head-top img { height: 36px; width: auto; }
+  .print-report-head-top { display: flex !important; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .print-report-head-top img { height: 36px; width: auto; display:block !important; }
   .print-org-name { font-size: 9pt; font-weight: 700; }
   .print-report-head h2 { font-size: 11pt !important; font-weight: 700; margin: 2px 0 2px 0; }
   .print-report-head .meta { font-size: 7.5pt; color: #333; }
@@ -688,7 +683,7 @@ if ($dateFrom !== '' || $dateTo !== '') {
       <?php if ($print): ?>
         <div class="print-report-head">
           <div class="print-report-head-top">
-            <img src="<?= hstr($baseUrl . '/public/assets/logo.png') ?>" alt="Logo biblioteca">
+            <img src="<?= hstr($baseUrl . '/assets/logo.png') ?>" alt="Logo biblioteca">
             <span class="print-org-name">Biblioteca della Resistenza — ANPI Udine</span>
           </div>
           <h2>
