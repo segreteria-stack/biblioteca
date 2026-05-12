@@ -22,9 +22,6 @@ function search_trim_abstract(string $text, int $maxChars = 350): string
 {
     $text = trim($text);
     if ($text === '') return '';
-    if (str_contains($text, 'Data export is allowed to ACNP') || str_contains($text, 'ACNP participating libraries')) {
-        return '';
-    }
     if (strlen($text) <= $maxChars) return $text;
     $snippet = substr($text, 0, $maxChars);
     $lastDot = strrpos($snippet, '.');

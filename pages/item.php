@@ -684,15 +684,12 @@ $needsCoverJs   = ($isbnForJs !== '' && $gbApiKey !== '' && !CoverService::hasLo
 
             <?php
             // FIX: riassunto solo da 520 $a, mai da note 500 $a
-            $isAcnpDisclaimer = static fn(string $t): bool =>
-                str_contains($t, 'Data export is allowed to ACNP') || str_contains($t, 'ACNP participating libraries');
-
             $displayedSummary = '';
             $summarySource    = '';
-            if ($summaryTxt !== '' && !$isAcnpDisclaimer($summaryTxt)) {
+            if ($summaryTxt !== '') {
                 $displayedSummary = $summaryTxt;
                 $summarySource    = 'local';
-            } elseif (!empty($marcExtra['abstract']) && !$isAcnpDisclaimer($marcExtra['abstract'])) {
+            } elseif (!empty($marcExtra['abstract'])) {
                 $displayedSummary = $marcExtra['abstract'];
                 $summarySource    = 'sbn';
             }
