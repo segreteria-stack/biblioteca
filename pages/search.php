@@ -25,6 +25,10 @@ $hasCsrf = function_exists('csrf_check') && function_exists('csrf_token');
 function search_trim_abstract(string $text, int $maxChars = 350): string
 {
     $text = trim($text);
+    // Scarta il disclaimer di copyright ACNP che finisce nel tag 520 durante l'import SBN
+    if (str_contains($text, 'Data export is allowed to ACNP') || str_contains($text, 'ACNP participating libraries')) {
+        return '';
+    }
     if ($text === '' || strlen($text) <= $maxChars) return $text;
     $snippet = substr($text, 0, $maxChars);
     $lastDot = strrpos($snippet, '.');
