@@ -69,6 +69,17 @@ sql/                schema DB di riferimento (anpiudine-or1d94_2.sql)
 - Pagina pubblica: `pages/staff_activate.php` (nuova)
 - Sicurezza: token monouso, scadenza 48h, HTTPS only
 
+### 5. Ricerca full-text su tutti i campi SQL
+- Attualmente la ricerca copre solo alcuni campi (titolo, autore, ecc.)
+- Estendere a tutti i campi rilevanti di `biblio` e `biblio_field` (soggetti, abstract, note, ecc.)
+- Valutare FULLTEXT index MySQL vs LIKE su campi concatenati
+- Verificare impatto su performance con il volume dati attuale
+
+### 6. Miglioramento maschera importazione da SBN
+- Rivedere UX del form in `pages/staff_catalog_new.php` e `public/ajax_sbn_enrich.php`
+- Possibili aree di miglioramento: feedback visivo durante import, gestione errori, anteprima record prima del salvataggio, importazione multipla
+- Verificare casi edge: record SBN con dati mancanti, duplicati, MARCXML malformato
+
 ---
 
 ## SQL utili da applicare sul DB live (opzionali/pendenti)
