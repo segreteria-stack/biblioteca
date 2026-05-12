@@ -20,7 +20,7 @@
 
   /* Pulsanti */
   --btn-primary-bg: #e11e28;
-  --btn-primary-bg-hover: #b40f1f;
+  --btn-primary-bg-hover: #b91c22;
   --btn-primary-text: #FFFFFF;
 
   /* Stati */
@@ -29,6 +29,24 @@
   /* Font di riferimento */
   --font-sans: "MessinaSansWeb", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-serif: "PT Serif", Times, serif;
+
+  /* Contatti */
+  --contact-radius: 14px;
+  --contact-gap: 1.25rem;
+  --contact-shadow: 0 12px 28px rgba(0,0,0,.06);
+  --contact-shadow-hover: 0 16px 36px rgba(0,0,0,.08);
+  --contact-accent: var(--color-primary, #e11e28);
+  --contact-border: var(--color-border-subtle);
+  --contact-muted: var(--color-text-muted, #666);
+  --contact-surface: rgba(255,255,255,.70);
+  --contact-surface-2: rgba(255,255,255,.92);
+
+  /* Admin patrons */
+  --ap-border: #e5e5e5;
+  --ap-muted: #6b7280;
+  --ap-bg-soft: #fafafa;
+  --ap-bg-card: #ffffff;
+  --ap-text: #111;
 }
 
 /* =========================================================
@@ -207,15 +225,6 @@ nav,
 [class*="btn"],
 [class*="nav"] {
   font-family: var(--font-sans);
-}
-
-/* Override palette principale ANPI Udine
-   ========================================================= */
-:root {
-  --color-primary: #e11e28;          /* rosso ANPI Udine */
-  --btn-primary-bg: #e11e28;
-  --btn-primary-bg-hover: #b91c22;   /* variante più scura */
-  --btn-primary-text: #ffffff;
 }
 
 /* =========================================================
@@ -576,14 +585,6 @@ input[type="submit"] {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem 1rem;
-}
-
-.search-actions {
-  margin-top: 1rem;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
 }
 
 /* =========================================================
@@ -961,16 +962,6 @@ input[type="submit"] {
 
 .page-section--results {
   margin-bottom: 2.5rem;
-}
-
-/* Header risultati: titolo + contatore + bottone a destra */
-
-.search-results-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
 }
 
 .search-results-header-main h1 {
@@ -1420,9 +1411,9 @@ input[type="submit"] {
    ========================================================= */
 
 .site-footer {
-  margin-top: 2rem;
+  margin-top: 3rem;
   border-top: 3px solid var(--color-primary);
-  padding: 1.4rem 0 1.8rem;
+  padding: 2rem 0 2.6rem;
   font-size: 0.85rem;
   color: #555555;
   background-color: #F0F0F0;
@@ -1562,11 +1553,7 @@ input[type="submit"] {
 /* Card home: leggermente più ariosa */
 .page-section--home {
   margin-bottom: 2.25rem;
-}
-
-/* Hero introduttivo */
-.home-hero {
-  margin-bottom: 1.5rem;
+  padding: 2rem 2rem 2.4rem;
 }
 
 .home-hero-subtitle {
@@ -1634,16 +1621,6 @@ input[type="submit"] {
     grid-column: 1;
     margin-top: 0.75rem;
   }
-}
-
-/* Sezione vetrina copertine */
-.home-highlight {
-  margin-top: 2rem;
-}
-
-.home-highlight-title {
-  font-size: 1.25rem;
-  margin-bottom: 0.75rem;
 }
 
 /* Base per le card copertina */
@@ -2044,12 +2021,6 @@ input[type="submit"] {
   color: #374151;
 }
 
-/* Interlinea più comoda per testo lungo */
-.page-regolamento p,
-.page-regolamento li {
-  line-height: 1.6;
-}
-
 /* Box per regole chiave / condizioni importanti */
 .box-regole {
   margin: 1rem 0;
@@ -2276,21 +2247,6 @@ input[type="submit"] {
   margin-right: -50vw;
 }
 
-/* Overlay scuro + gradiente verso il basso per migliorare il contrasto */
-.home-hero-banner::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(
-      to bottom,
-      rgba(0, 0, 0, 0.30) 0%,
-      rgba(0, 0, 0, 0.50) 45%,
-      rgba(0, 0, 0, 0.70) 100%
-    );
-  pointer-events: none;
-}
-
 .home-hero-banner-inner {
   position: relative;                  /* sopra l’overlay */
   display: flex;
@@ -2304,21 +2260,6 @@ input[type="submit"] {
 
 .home-hero-banner-text {
   max-width: 520px;
-}
-
-.home-hero-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.22rem 0.7rem;
-  border-radius: 999px;
-  background-color: rgba(0, 0, 0, 0.65);
-  font-size: 0.8rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  font-weight: 600;
-  color: #f3f4f6;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 }
 
 .home-hero-badge-dot {
@@ -2336,23 +2277,6 @@ input[type="submit"] {
   font-weight: 600;
   color: #e5e7eb;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
-}
-
-.home-hero-banner-text h1 {
-  margin: 0.8rem 0 0.4rem;
-  font-size: 2.6rem;
-  line-height: 1.05;
-  font-weight: 800;
-  color: #ffffff;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
-}
-
-.home-hero-banner-text p {
-  margin: 0.25rem 0 0;
-  font-size: 0.96rem;
-  line-height: 1.6;                    /* interlinea più leggibile */
-  color: #f9fafb;
-  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.7);
 }
 
 /* Box ricerca nell'hero */
@@ -2432,13 +2356,7 @@ input[type="submit"] {
    HOME – SPAZIATURE E LEGGIBILITÀ
    ========================================================= */
 
-/* Card centrale un po' più ariosa */
-.page-section--home {
-  padding: 2rem 2rem 2.4rem;
-  margin-bottom: 2.9rem;
-}
-
-/* Nota di stato: margine leggermente ridotto ora che l'hero respira di più */
+/* Nota di stato */
 .home-hero {
   margin-bottom: 1.6rem;
 }
@@ -2453,16 +2371,6 @@ input[type="submit"] {
   margin-bottom: 0;
 }
 
-/* Ultimi inserimenti: più spazio tra le card */
-.home-highlight {
-  margin-top: 2.1rem;
-}
-
-.home-highlight-title {
-  font-size: 1.25rem;
-  margin-bottom: 1rem;
-}
-
 /* override rispetto alla definizione precedente */
 .home-highlight--latest .home-latest-grid {
   gap: 1.75rem; /* circa 24px */
@@ -2473,31 +2381,9 @@ input[type="submit"] {
   height: 195px;
 }
 
-/* Footer meno “schiacciato” */
-.site-footer {
-  margin-top: 3rem;
-  padding: 2rem 0 2.6rem;
-}
-
 /* =========================================================
    CONTATTI (contatti.php) — Fancy, sobrio, coerente ANPI
    ========================================================= */
-
-:root{
-  --contact-radius: 14px;
-  --contact-gap: 1.25rem;
-
-  --contact-shadow: 0 12px 28px rgba(0,0,0,.06);
-  --contact-shadow-hover: 0 16px 36px rgba(0,0,0,.08);
-
-  --contact-accent: var(--color-primary, #e11e28);
-  --contact-border: var(--color-border-subtle);
-  --contact-muted: var(--color-text-muted, #666);
-
-  /* superficie “glass” leggera */
-  --contact-surface: rgba(255,255,255,.70);
-  --contact-surface-2: rgba(255,255,255,.92);
-}
 
 /* Layout */
 .contact-grid{
@@ -2749,141 +2635,8 @@ input[type="submit"] {
 }
 
 /* =========================================================
-   ADMIN PATRONS – staff UI (armonizzato)
-   Nota:
-   - Legacy: .admin-*
-   - Modern: .ap-*  (consigliato)
-   ========================================================= */
-
-/* -------------------------
-   Legacy (pulito e valido)
-   ------------------------- */
-.admin-patrons-header h1 {
-  font-size: 1.4rem;
-  margin: 0;
-}
-
-.admin-patrons-meta {
-  font-size: 0.85rem;
-  color: #666;
-}
-
-.admin-toolbar {
-  display: flex;
-  gap: .5rem;
-  flex-wrap: wrap;
-  align-items: center;
-  margin: 1rem 0;
-}
-
-.admin-toolbar .input,
-.admin-toolbar select {
-  height: 34px;
-  font-size: 0.9rem;
-}
-
-.admin-toolbar .button {
-  height: 34px;
-  padding: 0 .75rem;
-  font-size: 0.9rem;
-}
-
-.admin-new-user {
-  background: #fafafa;
-  border: 1px solid #e5e5e5;
-  border-radius: 8px;
-  padding: .75rem;
-  margin-bottom: 1rem;
-}
-
-.admin-new-user summary {
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.admin-new-user-form {
-  display: flex;
-  gap: .5rem;
-  flex-wrap: wrap;
-  margin-top: .5rem;
-}
-
-.admin-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9rem;
-}
-
-.admin-table thead th {
-  text-align: left;
-  font-weight: 600;
-  color: #444;
-  border-bottom: 1px solid #ddd;
-  padding: .5rem;
-}
-
-.admin-table tbody td {
-  padding: .5rem;
-  vertical-align: top;
-  border-top: 1px solid #eee;
-}
-
-.admin-table .num { text-align: right; }
-
-.admin-user-name,
-.user-name {
-  font-weight: 600;
-}
-
-.admin-user-sub,
-.user-sub {
-  font-size: 0.8rem;
-  color: #666;
-}
-
-.admin-badge,
-.badge {
-  display: inline-block;
-  padding: 2px 8px;
-  font-size: 0.75rem;
-  border-radius: 999px;
-  border: 1px solid #ccc;
-  color: #333;
-}
-
-.admin-badge.inactive,
-.badge.inactive {
-  opacity: .6;
-}
-
-.muted { color: #999; }
-
-.admin-actions .button,
-.button.small {
-  padding: 4px 8px;
-  font-size: 0.8rem;
-}
-
-.admin-pagination {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 1rem;
-  font-size: 0.85rem;
-}
-
-/* =========================================================
    ADMIN PATRONS – Staff UI (legacy table + card view)
    ========================================================= */
-
-/* ---------- Variabili comuni ---------- */
-:root {
-  --ap-border: #e5e5e5;
-  --ap-muted: #6b7280;
-  --ap-bg-soft: #fafafa;
-  --ap-bg-card: #ffffff;
-  --ap-text: #111;
-}
 
 /* =========================================================
    HEADER / META
@@ -3366,19 +3119,33 @@ input[type="submit"] {
    ========================================================= */
 
 .home-hero-banner::before {
-  /* Gradient più marcato per leggibilità */
+  content: "";
+  position: absolute;
+  inset: 0;
   background: linear-gradient(
     to bottom,
     rgba(0, 0, 0, 0.4) 0%,
     rgba(0, 0, 0, 0.6) 50%,
     rgba(139, 0, 0, 0.8) 100%
   );
+  pointer-events: none;
 }
 
 /* Badge animato più visibile */
 .home-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.22rem 0.7rem;
+  border-radius: 999px;
   background-color: rgba(225, 30, 40, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.3);
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #f3f4f6;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
   animation: pulse-badge 2s infinite;
 }
 
@@ -3395,12 +3162,19 @@ input[type="submit"] {
 
 /* Testo hero più grande e leggibile */
 .home-hero-banner-text h1 {
+  margin: 0.8rem 0 0.4rem;
   font-size: clamp(2rem, 5vw, 3.2rem);
+  line-height: 1.05;
+  font-weight: 800;
+  color: #ffffff;
   text-shadow: 0 2px 8px rgba(0,0,0,0.8);
 }
 
 .home-hero-banner-text p {
+  margin: 0.25rem 0 0;
   font-size: 1.1rem;
+  line-height: 1.6;
+  color: #f9fafb;
   max-width: 90%;
   text-shadow: 0 1px 4px rgba(0,0,0,0.8);
 }
@@ -4021,6 +3795,11 @@ input[type="submit"] {
 /* =========================================================
    HOME – Sezione "Esplora per tema"
    ========================================================= */
+/* Sezione vetrina copertine */
+.home-highlight {
+  margin-top: 2.1rem;
+}
+
 .home-highlight--topics {
   padding: 1.25rem 1.5rem 1.5rem;
   background: #fafafa;

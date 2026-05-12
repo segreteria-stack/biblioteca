@@ -52,7 +52,7 @@ $titleHtml = (string)($title ?? 'OPAC – Biblioteca della Resistenza');
     <meta name="description"
           content="Catalogo online della Biblioteca della Resistenza del Comitato Provinciale ANPI di Udine.">
 
-    <link rel="stylesheet" href="<?= h($base) ?>/css/style.css?v=20260512">
+    <link rel="stylesheet" href="<?= h($base) ?>/css/style.css?v=20260512b">
 
     <?php if ($pageId === 'item'): ?>
         <link rel="stylesheet" href="<?= h($base) ?>/css/item.css?v=20251125">
