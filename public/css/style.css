@@ -4523,3 +4523,26 @@ input[type="submit"] {
 .btn-add-copy:hover {
   text-decoration: underline;
 }
+
+/* --- Badge disponibilità (usato in search, search_advanced, item) ---------- */
+.availability-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-family: var(--font-sans);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.availability-available    { background-color: #dcfce7; color: #166534; }
+.availability-available::before    { content: "●"; font-size: 0.55rem; color: #22c55e; }
+.availability-unavailable  { background-color: #fee2e2; color: #991b1b; }
+.availability-unavailable::before  { content: "●"; font-size: 0.55rem; color: #ef4444; }
+.availability-reserved     { background-color: #fef9c3; color: #713f12; }
+.availability-reserved::before     { content: "●"; font-size: 0.55rem; color: #eab308; }
+.availability-other        { background-color: #f0f9ff; color: #075985; }
+.availability-other::before        { content: "●"; font-size: 0.55rem; color: #0ea5e9; }
+.availability-unknown      { background-color: #f3f4f6; color: #4b5563; }
