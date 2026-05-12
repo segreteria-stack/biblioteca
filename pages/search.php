@@ -42,25 +42,54 @@ function search_fetch_availability_map(PDO $pdo, array $bibids): array
     foreach ($bibids as $id) $out[$id] = ['state' => 'unknown', 'label' => ''];
     $ph = implode(',', array_fill(0, count($bibids), '?'));
     try {
-        $stmt = $pdo->prepare("SELECT bibid, status_cd FROM biblio_copy WHERE bibid IN ($ph)");
+        $stmt = $pdo->prepare("
+            SELECT c.bibid, c.status_cd, COALESCE(s.description, c.status_cd) AS status_desc
+            FROM biblio_copy c
+            LEFT JOIN biblio_status_dm s ON s.code = c.status_cd
+            WHERE c.bibid IN ($ph)
+        ");
         $stmt->execute($bibids);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (\PDOException $e) { return $out; }
+
     $byBib = [];
     foreach ($rows as $r) {
-        $id = (int)($r['bibid'] ?? 0);
-        if ($id > 0) $byBib[$id][] = (string)($r['status_cd'] ?? '');
+        $id   = (int)($r['bibid'] ?? 0);
+        $code = strtolower(trim((string)($r['status_cd'] ?? '')));
+        if ($id > 0) $byBib[$id][$code] = (string)($r['status_desc'] ?? $code);
     }
+
+    // codici inattivi (scartato/perso): non influenzano il badge
+    $inactive = ['dis', 'lst'];
+    // priorità tra stati attivi: più basso = più rilevante da mostrare
+    $prio = ['in' => 1, 'out' => 2, 'ln' => 2, 'hld' => 3, 'mnd' => 4, 'ord' => 5, 'crt' => 6];
+
     foreach ($bibids as $id) {
         if (!isset($byBib[$id]) || $byBib[$id] === []) continue;
-        foreach ($byBib[$id] as $code) {
-            $code = strtolower(trim((string)$code));
-            if ($code === '' || $code === 'in') {
-                $out[$id] = ['state' => 'available', 'label' => '🟢 Disponibile'];
-                continue 2;
-            }
+        $codes = $byBib[$id]; // code => description
+
+        if (isset($codes['in']) || isset($codes[''])) {
+            $out[$id] = ['state' => 'available', 'label' => 'Disponibile'];
+            continue;
         }
-        $out[$id] = ['state' => 'unavailable', 'label' => '🔴 In prestito'];
+
+        $active = array_filter($codes, static fn($d, $c) => !in_array($c, $inactive, true), ARRAY_FILTER_USE_BOTH);
+        if ($active === []) continue; // solo copie scartate/perse: nessun badge
+
+        // scegli lo status più rilevante
+        $bestCode = array_key_first($active);
+        $bestPrio = $prio[$bestCode] ?? 99;
+        foreach ($active as $code => $desc) {
+            $p = $prio[$code] ?? 99;
+            if ($p < $bestPrio) { $bestPrio = $p; $bestCode = $code; }
+        }
+        $label = $active[$bestCode];
+        $state = match($bestCode) {
+            'hld'   => 'reserved',
+            'mnd', 'ord', 'crt' => 'other',
+            default => 'unavailable',
+        };
+        $out[$id] = ['state' => $state, 'label' => $label];
     }
     return $out;
 }

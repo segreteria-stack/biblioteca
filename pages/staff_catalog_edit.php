@@ -305,9 +305,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($loanCount > 0) {
                         $errors[] = 'Copia con storico prestiti: usa Scarta.';
                     } else {
+                        $pdo->prepare('DELETE FROM biblio_hold WHERE bibid = :bibid AND copyid = :copyid')
+                            ->execute([':bibid' => $bibid, ':copyid' => $copyid]);
                         $pdo->prepare('DELETE FROM biblio_copy_fields WHERE bibid = :bibid AND copyid = :copyid')
                             ->execute([':bibid' => $bibid, ':copyid' => $copyid]);
-
                         $pdo->prepare('DELETE FROM biblio_copy WHERE bibid = :bibid AND copyid = :copyid LIMIT 1')
                             ->execute([':bibid' => $bibid, ':copyid' => $copyid]);
 
@@ -389,15 +390,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $delBibid = (int)($_POST['bibid'] ?? 0);
         if ($delBibid > 0) {
             try {
-                $stmt = $pdo->prepare('SELECT COUNT(*) FROM biblio_copy WHERE bibid = :bibid');
+                // Blocca se esistono copie ancora attive (non scartate/perse)
+                $stmt = $pdo->prepare("SELECT COUNT(*) FROM biblio_copy WHERE bibid = :bibid AND status_cd NOT IN ('dis','lst')");
                 $stmt->execute([':bibid' => $delBibid]);
-                $copyCount = (int)$stmt->fetchColumn();
+                $activeCopies = (int)$stmt->fetchColumn();
 
-                if ($copyCount > 0) {
-                    $errors[] = 'Elimina prima tutte le ' . $copyCount . ' copie collegate.';
+                if ($activeCopies > 0) {
+                    $errors[] = 'Sono presenti ' . $activeCopies . ' cop' . ($activeCopies > 1 ? 'ie' : 'ia') . ' attiv' . ($activeCopies > 1 ? 'e' : 'a') . '. Scartale prima di eliminare il libro.';
                 } else {
-                    $pdo->prepare('DELETE FROM biblio_field WHERE bibid = :bibid')->execute([':bibid' => $delBibid]);
-                    $pdo->prepare('DELETE FROM biblio WHERE bibid = :bibid LIMIT 1')->execute([':bibid' => $delBibid]);
+                    // Cascade delete di tutte le tabelle collegate al bibid
+                    $pdo->prepare('DELETE FROM biblio_hold       WHERE bibid = :bibid')->execute([':bibid' => $delBibid]);
+                    $pdo->prepare('DELETE FROM biblio_copy_fields WHERE bibid = :bibid')->execute([':bibid' => $delBibid]);
+                    $pdo->prepare('DELETE FROM biblio_copy        WHERE bibid = :bibid')->execute([':bibid' => $delBibid]);
+                    $pdo->prepare('DELETE FROM biblio_index_ext   WHERE bibid = :bibid')->execute([':bibid' => $delBibid]);
+                    $pdo->prepare('DELETE FROM biblio_field        WHERE bibid = :bibid')->execute([':bibid' => $delBibid]);
+                    $pdo->prepare('DELETE FROM biblio              WHERE bibid = :bibid LIMIT 1')->execute([':bibid' => $delBibid]);
                     $messages[] = 'Record #' . $delBibid . ' eliminato.';
                     $skipEditLoading = true;
                     $_GET['edit_bibid'] = '';

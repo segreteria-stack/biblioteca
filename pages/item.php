@@ -123,10 +123,12 @@ function fetchAvailabilityDetail(PDO $pdo, int $bibid): array
 {
     try {
         $stmt = $pdo->prepare("
-            SELECT status_cd, COUNT(*) as cnt 
-            FROM biblio_copy 
-            WHERE bibid = :bibid AND status_cd NOT IN ('dis', 'lst') 
-            GROUP BY status_cd
+            SELECT c.status_cd, COUNT(*) AS cnt,
+                   COALESCE(s.description, c.status_cd) AS status_desc
+            FROM biblio_copy c
+            LEFT JOIN biblio_status_dm s ON s.code = c.status_cd
+            WHERE c.bibid = :bibid AND c.status_cd NOT IN ('dis', 'lst')
+            GROUP BY c.status_cd, s.description
         ");
         $stmt->execute([':bibid' => $bibid]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -137,20 +139,35 @@ function fetchAvailabilityDetail(PDO $pdo, int $bibid): array
     $total = 0;
     $available = 0;
     $out = 0;
+    $statusCounts = []; // code => [cnt, desc]
     foreach ($rows as $r) {
-        $cnt = (int)($r['cnt'] ?? 0);
+        $cnt  = (int)($r['cnt'] ?? 0);
+        $code = (string)($r['status_cd'] ?? '');
+        $desc = (string)($r['status_desc'] ?? $code);
         $total += $cnt;
-        if ($r['status_cd'] === 'in') $available += $cnt;
-        if (in_array($r['status_cd'], ['out', 'ln'], true)) $out += $cnt;
+        $statusCounts[$code] = ['cnt' => $cnt, 'desc' => $desc];
+        if ($code === 'in') $available += $cnt;
+        if (in_array($code, ['out', 'ln'], true)) $out += $cnt;
     }
 
     if ($total === 0) {
         return ['state' => 'unknown', 'label' => 'Nessuna copia', 'available' => 0, 'total' => 0, 'out' => 0];
     }
     if ($available > 0) {
-        return ['state' => 'available', 'label' => $available . ' copia' . ($available > 1 ? ' disponibili' : ' disponibile'), 'available' => $available, 'total' => $total, 'out' => $out];
+        $label = $available . ' cop' . ($available > 1 ? 'ie' : 'ia') . ' disponibil' . ($available > 1 ? 'i' : 'e');
+        return ['state' => 'available', 'label' => $label, 'available' => $available, 'total' => $total, 'out' => $out];
     }
-    return ['state' => 'unavailable', 'label' => 'Tutte in prestito (' . $out . ' copie)', 'available' => 0, 'total' => $total, 'out' => $out];
+
+    // Nessuna copia disponibile: mostra il dettaglio degli stati presenti
+    $prio = ['out' => 1, 'ln' => 1, 'hld' => 2, 'mnd' => 3, 'ord' => 4, 'crt' => 5];
+    uasort($statusCounts, static fn($a, $b) => ($prio[array_search($a, $statusCounts, true)] ?? 9) <=> ($prio[array_search($b, $statusCounts, true)] ?? 9));
+    $parts = [];
+    foreach ($statusCounts as $code => $info) {
+        $parts[] = $info['cnt'] . ' ' . strtolower($info['desc']);
+    }
+    $state = isset($statusCounts['hld']) && count($statusCounts) === 1 ? 'reserved' : 'unavailable';
+    $label = implode(' · ', $parts);
+    return ['state' => $state, 'label' => $label, 'available' => 0, 'total' => $total, 'out' => $out];
 }
 
 // -----------------------------------------------------------------------------
@@ -161,9 +178,11 @@ function fetchCopiesDetail(PDO $pdo, int $bibid): array
     try {
         $stmt = $pdo->prepare("
             SELECT c.copyid, c.barcode_nmbr, c.status_cd, c.due_back_dt,
-                   m.first_name, m.last_name
+                   m.first_name, m.last_name,
+                   COALESCE(s.description, c.status_cd) AS status_desc
             FROM biblio_copy c
             LEFT JOIN member m ON c.mbrid = m.mbrid
+            LEFT JOIN biblio_status_dm s ON s.code = c.status_cd
             WHERE c.bibid = :bibid AND c.status_cd NOT IN ('dis', 'lst')
             ORDER BY c.copyid
         ");
@@ -174,14 +193,17 @@ function fetchCopiesDetail(PDO $pdo, int $bibid): array
     }
 }
 
-function copyStatusLabel(string $code): string
+function copyStatusLabel(string $code, string $dbDescription = ''): string
 {
+    if ($dbDescription !== '') return $dbDescription;
     return match(strtolower($code)) {
         'in'  => 'Disponibile',
         'out' => 'In prestito',
         'ln'  => 'In prestito',
         'hld' => 'Prenotato',
         'mnd' => 'In manutenzione',
+        'dis' => 'Scartato',
+        'lst' => 'Perduto',
         'ord' => 'Ordinato',
         'crt' => 'Da reintegrare',
         default => $code
@@ -556,7 +578,7 @@ $needsCoverJs   = ($isbnForJs !== '' && $gbApiKey !== '' && !CoverService::hasLo
                     <span class="item-sidebar-label">Copie in biblioteca</span>
                     <ul class="item-copy-list">
                         <?php foreach ($allCopies as $copy):
-                            $copyStatus  = copyStatusLabel($copy['status_cd']);
+                            $copyStatus  = copyStatusLabel($copy['status_cd'], (string)($copy['status_desc'] ?? ''));
                             $isAvailable = in_array(strtolower($copy['status_cd']), ['in', 'crt'], true);
                             $statusClass = $isAvailable ? 'copy-status-ok' : 'copy-status-busy';
                         ?>
