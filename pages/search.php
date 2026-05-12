@@ -36,18 +36,39 @@ function search_trim_abstract(string $text, int $maxChars = 350): string
 
 function search_fetch_availability_map(PDO $pdo, array $bibids): array
 {
+    // Mappa PHP di fallback: usata quando biblio_status_dm è vuota o assente
+    static $defaultLabels = [
+        'in'  => 'Disponibile',
+        'out' => 'In prestito',
+        'ln'  => 'In prestito',
+        'hld' => 'Prenotato',
+        'mnd' => 'In manutenzione',
+        'ord' => 'Ordinato',
+        'crt' => 'Da reintegrare',
+        'dis' => 'Scartato',
+        'lst' => 'Perduto',
+        '8'   => 'Escluso dal prestito',
+    ];
+
     $out    = [];
     $bibids = array_values(array_unique(array_filter(array_map('intval', $bibids), static fn($v) => $v > 0)));
     if ($bibids === []) return $out;
     foreach ($bibids as $id) $out[$id] = ['state' => 'unknown', 'label' => ''];
     $ph = implode(',', array_fill(0, count($bibids), '?'));
+
+    // Carica le descrizioni dal DB se disponibili, altrimenti usa la mappa di fallback
+    $dbLabels = [];
     try {
-        $stmt = $pdo->prepare("
-            SELECT c.bibid, c.status_cd, COALESCE(s.description, c.status_cd) AS status_desc
-            FROM biblio_copy c
-            LEFT JOIN biblio_status_dm s ON s.code = c.status_cd
-            WHERE c.bibid IN ($ph)
-        ");
+        $s = $pdo->prepare("SELECT code, description FROM biblio_status_dm");
+        $s->execute();
+        foreach ($s->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $dbLabels[strtolower(trim((string)$row['code']))] = (string)$row['description'];
+        }
+    } catch (\PDOException $e) { /* tabella assente: useremo $defaultLabels */ }
+    $labels = $dbLabels !== [] ? $dbLabels : $defaultLabels;
+
+    try {
+        $stmt = $pdo->prepare("SELECT bibid, status_cd FROM biblio_copy WHERE bibid IN ($ph)");
         $stmt->execute($bibids);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (\PDOException $e) { return $out; }
@@ -56,38 +77,39 @@ function search_fetch_availability_map(PDO $pdo, array $bibids): array
     foreach ($rows as $r) {
         $id   = (int)($r['bibid'] ?? 0);
         $code = strtolower(trim((string)($r['status_cd'] ?? '')));
-        if ($id > 0) $byBib[$id][$code] = (string)($r['status_desc'] ?? $code);
+        if ($id > 0) $byBib[$id][] = $code;
     }
 
     // codici inattivi (scartato/perso): non influenzano il badge
     $inactive = ['dis', 'lst'];
     // priorità tra stati attivi: più basso = più rilevante da mostrare
-    $prio = ['in' => 1, 'out' => 2, 'ln' => 2, 'hld' => 3, 'mnd' => 4, 'ord' => 5, 'crt' => 6];
+    $prio = ['in' => 1, 'out' => 2, 'ln' => 2, 'hld' => 3, 'mnd' => 4, 'ord' => 5, 'crt' => 6, '8' => 4];
 
     foreach ($bibids as $id) {
         if (!isset($byBib[$id]) || $byBib[$id] === []) continue;
-        $codes = $byBib[$id]; // code => description
+        $codes = array_unique($byBib[$id]);
 
-        if (isset($codes['in']) || isset($codes[''])) {
+        // almeno una copia disponibile → Disponibile
+        if (in_array('in', $codes, true) || in_array('', $codes, true)) {
             $out[$id] = ['state' => 'available', 'label' => 'Disponibile'];
             continue;
         }
 
-        $active = array_filter($codes, static fn($d, $c) => !in_array($c, $inactive, true), ARRAY_FILTER_USE_BOTH);
+        $active = array_values(array_filter($codes, static fn($c) => !in_array($c, $inactive, true)));
         if ($active === []) continue; // solo copie scartate/perse: nessun badge
 
         // scegli lo status più rilevante
-        $bestCode = array_key_first($active);
+        $bestCode = $active[0];
         $bestPrio = $prio[$bestCode] ?? 99;
-        foreach ($active as $code => $desc) {
+        foreach ($active as $code) {
             $p = $prio[$code] ?? 99;
             if ($p < $bestPrio) { $bestPrio = $p; $bestCode = $code; }
         }
-        $label = $active[$bestCode];
+        $label = $labels[$bestCode] ?? ($defaultLabels[$bestCode] ?? $bestCode);
         $state = match($bestCode) {
-            'hld'   => 'reserved',
-            'mnd', 'ord', 'crt' => 'other',
-            default => 'unavailable',
+            'hld'         => 'reserved',
+            'mnd', 'ord', 'crt', '8' => 'other',
+            default       => 'unavailable',
         };
         $out[$id] = ['state' => $state, 'label' => $label];
     }
