@@ -6,7 +6,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 if (empty($_SESSION['staff_user_id'])) {
-    $baseUrl = $cfg['app']['base_url'] ?? '';
+    $baseUrl = base_url();
     header('Location: ' . $baseUrl . '/index.php?page=login&redirect=' . urlencode('admin_patrons'));
     exit;
 }
@@ -116,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ")->execute([$mbrid, $email, $token, $expires]);
 
                         $publicHost = rtrim((string)($cfg['app']['public_host'] ?? ''), '/');
-                        $base       = rtrim((string)($cfg['app']['base_url'] ?? ''), '/');
+                        $base       = base_url();
                         if ($publicHost === '') {
                             $https      = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
                             $publicHost = ($https ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? '');

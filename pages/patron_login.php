@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 $title = 'Accesso Patron';
 
 // DB: nel bootstrap la connessione è $pdo; qui usiamo $db per compatibilità

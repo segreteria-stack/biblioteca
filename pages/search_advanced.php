@@ -39,26 +39,51 @@ function search_fetch_availability_map(PDO $pdo, array $bibids): array
     foreach ($bibids as $id) $out[$id] = ['state' => 'unknown', 'label' => ''];
     $ph = implode(',', array_fill(0, count($bibids), '?'));
     try {
-        $stmt = $pdo->prepare("SELECT bibid, status_cd FROM biblio_copy WHERE bibid IN ($ph)");
+        $stmt = $pdo->prepare("
+            SELECT c.bibid, c.status_cd, COALESCE(s.description, c.status_cd) AS status_desc
+            FROM biblio_copy c
+            LEFT JOIN biblio_status_dm s ON s.code = c.status_cd
+            WHERE c.bibid IN ($ph)
+        ");
         $stmt->execute($bibids);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (\PDOException $e) { return $out; }
+
     $byBib = [];
     foreach ($rows as $r) {
-        $id = (int)($r['bibid'] ?? 0);
-        if ($id <= 0) continue;
-        $byBib[$id][] = (string)($r['status_cd'] ?? '');
+        $id   = (int)($r['bibid'] ?? 0);
+        $code = strtolower(trim((string)($r['status_cd'] ?? '')));
+        if ($id > 0) $byBib[$id][$code] = (string)($r['status_desc'] ?? $code);
     }
+
+    $inactive = ['dis', 'lst'];
+    $prio = ['in' => 1, 'out' => 2, 'ln' => 2, 'hld' => 3, 'mnd' => 4, 'ord' => 5, 'crt' => 6];
+
     foreach ($bibids as $id) {
         if (!isset($byBib[$id]) || $byBib[$id] === []) continue;
-        $hasAvailable = false;
-        foreach ($byBib[$id] as $code) {
-            $code = strtolower(trim((string)$code));
-            if ($code === '' || $code === 'in') { $hasAvailable = true; break; }
+        $codes = $byBib[$id];
+
+        if (isset($codes['in']) || isset($codes[''])) {
+            $out[$id] = ['state' => 'available', 'label' => 'Disponibile'];
+            continue;
         }
-        $out[$id] = $hasAvailable
-            ? ['state' => 'available',   'label' => '🟢 Disponibile']
-            : ['state' => 'unavailable', 'label' => '🔴 In prestito'];
+
+        $active = array_filter($codes, static fn($d, $c) => !in_array($c, $inactive, true), ARRAY_FILTER_USE_BOTH);
+        if ($active === []) continue;
+
+        $bestCode = array_key_first($active);
+        $bestPrio = $prio[$bestCode] ?? 99;
+        foreach ($active as $code => $desc) {
+            $p = $prio[$code] ?? 99;
+            if ($p < $bestPrio) { $bestPrio = $p; $bestCode = $code; }
+        }
+        $label = $active[$bestCode];
+        $state = match($bestCode) {
+            'hld'   => 'reserved',
+            'mnd', 'ord', 'crt' => 'other',
+            default => 'unavailable',
+        };
+        $out[$id] = ['state' => $state, 'label' => $label];
     }
     return $out;
 }
@@ -102,11 +127,11 @@ function buildTitleCondition(string $value, string $op, array &$params): ?string
     $value = trim($value);
     if ($value === '') return null;
     if (strtolower($op) === 'contains') {
-        $terms = array_values(array_filter(preg_split('/\s+/', $value) ?: [], fn($t) => trim($t) !== ''));
-        if ($terms === []) return null;
+        $tokens = search_tokenize($value);
+        if ($tokens === []) return null;
         $parts = [];
-        foreach ($terms as $term) {
-            $pattern  = '%' . $term . '%';
+        foreach ($tokens as $tok) {
+            $pattern  = '%' . $tok['value'] . '%';
             $parts[]  = '(title LIKE ? OR title_remainder LIKE ?)';
             $params[] = $pattern;
             $params[] = $pattern;
@@ -122,6 +147,17 @@ function buildTitleCondition(string $value, string $op, array &$params): ?string
 function buildAuthorCondition(string $value, string $op, array &$params): ?string
 {
     if ($value === '') return null;
+    if (strtolower($op) === 'contains') {
+        $tokens = search_tokenize($value);
+        if ($tokens === []) return null;
+        $parts = [];
+        foreach ($tokens as $tok) {
+            $pattern  = '%' . $tok['value'] . '%';
+            $parts[]  = 'author LIKE ?';
+            $params[] = $pattern;
+        }
+        return '(' . implode(' AND ', $parts) . ')';
+    }
     $info = buildPattern($value, $op);
     $params[] = $info['pattern'];
     return $info['use_like'] ? 'author LIKE ?' : 'author = ?';
@@ -130,6 +166,17 @@ function buildAuthorCondition(string $value, string $op, array &$params): ?strin
 function buildSubjectCondition(string $value, string $op, array &$params): ?string
 {
     if ($value === '') return null;
+    if (strtolower($op) === 'contains') {
+        $tokens = search_tokenize($value);
+        if ($tokens === []) return null;
+        $parts = [];
+        foreach ($tokens as $tok) {
+            $pattern = '%' . $tok['value'] . '%';
+            $parts[] = "(topic1 LIKE ? OR topic2 LIKE ? OR topic3 LIKE ? OR topic4 LIKE ? OR topic5 LIKE ?)";
+            for ($i = 0; $i < 5; $i++) $params[] = $pattern;
+        }
+        return '(' . implode(' AND ', $parts) . ')';
+    }
     $info = buildPattern($value, $op);
     $op_  = $info['use_like'] ? 'LIKE' : '=';
     $sql  = "(topic1 $op_ ? OR topic2 $op_ ? OR topic3 $op_ ? OR topic4 $op_ ? OR topic5 $op_ ?)";
@@ -271,7 +318,7 @@ if ($clauses !== []) {
             $parts[]   = $connector . ' ' . $clause['sql'];
         }
     }
-    $whereSql = 'WHERE ' . implode(' ', $parts);
+    $whereSql = "WHERE biblio.opac_flg = 'Y' AND (" . implode(' ', $parts) . ')';
 }
 
 // -----------------------------------------------------------------------------
@@ -377,7 +424,7 @@ if ($whereSql !== '') {
                                     </select>
                                 </div>
                                 <div class="adv-cell adv-cell-value">
-                                    <input type="text" name="value[]" value="<?= h($rowValue) ?>" placeholder="Inserisci il termine di ricerca">
+                                    <input type="text" name="value[]" value="<?= h($rowValue) ?>" placeholder="Inserisci il termine di ricerca" data-autocomplete="1" autocomplete="off">
                                 </div>
                                 <div class="adv-cell adv-cell-remove">
                                     <button type="button" class="adv-remove" aria-label="Rimuovi riga">×</button>
@@ -389,6 +436,8 @@ if ($whereSql !== '') {
                     <div class="adv-add-row">
                         <button type="button" id="adv-add-row" class="btn-add-row">+ Aggiungi riga di ricerca</button>
                     </div>
+
+                    <p class="search-tip">Virgolette per frase esatta: <code>"guerra partigiana"</code></p>
 
                     <div class="search-actions">
                         <button type="submit" class="btn-primary btn-primary-cta">Cerca</button>
@@ -671,12 +720,15 @@ if ($whereSql !== '') {
         const rows = container.querySelectorAll('.adv-row');
         if (rows.length >= maxRows) return;
         const clone = rows[rows.length - 1].cloneNode(true);
+        // Rimuovi eventuali dropdown clonati e resetta il valore
+        clone.querySelectorAll('.ac-dropdown').forEach(el => el.remove());
         const input = clone.querySelector('input[name="value[]"]');
         if (input) input.value = '';
         const boolSelect = clone.querySelector('.adv-bool');
         if (boolSelect) boolSelect.value = 'AND';
         container.appendChild(clone);
         updateRowStates();
+        if (input && window._initAcInput) window._initAcInput(input);
     });
 
     container.addEventListener('click', function (e) {

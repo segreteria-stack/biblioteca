@@ -28,21 +28,30 @@ try {
 }
 
 // -----------------------------------------------------------------------------
-// 1) Recupero soggetti dalle colonne topic1..topic5
+// 1) Recupero soggetti dalle colonne topic1..topic5 (solo record pubblici)
 // -----------------------------------------------------------------------------
 
-$sql = '
-    SELECT
-        topic1,
-        topic2,
-        topic3,
-        topic4,
-        topic5
-    FROM biblio
-';
+$frequencies = []; // [etichetta => conteggio]
 
 try {
-    $stmt = $pdo->query($sql);
+    $stmt = $pdo->query("
+        SELECT topic1, topic2, topic3, topic4, topic5
+        FROM biblio
+        WHERE opac_flg = 'Y'
+    ");
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        foreach (['topic1', 'topic2', 'topic3', 'topic4', 'topic5'] as $col) {
+            $raw = trim((string)($row[$col] ?? ''));
+            if ($raw === '') continue;
+            // Split on ; or | only — not on , to avoid breaking "Cognome, Nome"
+            $parts = preg_split('/\s*[;|]\s*/', $raw) ?: [$raw];
+            foreach ($parts as $part) {
+                $label = trim($part);
+                if ($label === '') continue;
+                $frequencies[$label] = ($frequencies[$label] ?? 0) + 1;
+            }
+        }
+    }
 } catch (PDOException $e) {
     ?>
     <section class="page-section page-section--topics">
@@ -53,42 +62,33 @@ try {
     return;
 }
 
-$frequencies = []; // [etichetta => conteggio]
+// -----------------------------------------------------------------------------
+// 1b) Arricchimento con soggetti MARC da biblio_field (tag 600-699, subfield a)
+// -----------------------------------------------------------------------------
 
-while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-    foreach (['topic1', 'topic2', 'topic3', 'topic4', 'topic5'] as $col) {
-        if (!array_key_exists($col, $row)) {
-            continue;
+try {
+    $stmtMarc = $pdo->query("
+        SELECT bf.field_data AS topic, COUNT(DISTINCT bf.bibid) AS cnt
+        FROM biblio_field bf
+        JOIN biblio b ON b.bibid = bf.bibid AND b.opac_flg = 'Y'
+        WHERE bf.tag BETWEEN 600 AND 699
+          AND bf.subfield_cd = 'a'
+          AND bf.field_data IS NOT NULL
+          AND bf.field_data != ''
+        GROUP BY bf.field_data
+    ");
+    while ($row = $stmtMarc->fetch(PDO::FETCH_ASSOC)) {
+        $label = trim((string)$row['topic']);
+        if ($label === '') continue;
+        // Somma con eventuale frequenza già conteggiata dai campi denormalizzati,
+        // evitando doppio conteggio se il valore è identico.
+        if (!isset($frequencies[$label])) {
+            $frequencies[$label] = (int)$row['cnt'];
         }
-
-        $raw = $row[$col];
-
-        if ($raw === null || $raw === '') {
-            continue;
-        }
-
-        if (!is_string($raw)) {
-            $raw = (string)$raw;
-        }
-
-        // Più soggetti eventualmente separati da ; o ,
-        $parts = preg_split('/[;|,]+/', $raw);
-        if (!is_array($parts)) {
-            $parts = [$raw];
-        }
-
-        foreach ($parts as $part) {
-            $label = trim((string)$part);
-            if ($label === '') {
-                continue;
-            }
-
-            if (!isset($frequencies[$label])) {
-                $frequencies[$label] = 0;
-            }
-            $frequencies[$label]++;
-        }
+        // Se già presente dai topic1..5, non sommiamo per non duplicare
     }
+} catch (PDOException $e) {
+    // I soggetti MARC sono un arricchimento opzionale; proseguiamo anche se fallisce
 }
 
 if ($frequencies === []) {
@@ -223,12 +223,13 @@ $totalTopics = count($frequencies);
         <ul class="topics-index-list">
             <?php foreach ($groupKeys as $key): ?>
                 <?php
-                $label = ($key === '#') ? '#' : $key;
-                $anchorId = 'topics-' . $label;
+                $label    = ($key === '#') ? '#' : $key;
+                $displayLabel = ($key === '#') ? 'Altro' : $key;
+                $anchorId = 'topics-' . $displayLabel;
                 ?>
                 <li class="topics-index-item">
                     <a href="#<?= h($anchorId) ?>" class="topics-index-link">
-                        <?= h($label) ?>
+                        <?= h($displayLabel) ?>
                     </a>
                 </li>
             <?php endforeach; ?>

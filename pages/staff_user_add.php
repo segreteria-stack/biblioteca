@@ -66,6 +66,9 @@ $password2   = '';
 // Gestione POST – creazione nuovo staff
 // -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!csrf_verify($_POST['_csrf'] ?? '')) {
+        $errors[] = 'Sessione scaduta o token non valido, riprova.';
+    } else {
     // Lettura campi
     $username   = trim((string)($_POST['username'] ?? ''));
     $email      = trim((string)($_POST['email'] ?? ''));
@@ -247,6 +250,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = 'Errore durante la creazione del nuovo account staff.';
         }
     }
+    } // end csrf_verify
 }
 ?>
 
@@ -295,6 +299,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </header>
 
         <form method="post" class="staff-form">
+            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
             <div class="staff-form-grid">
                 <div class="search-row">
                     <label for="username">Username (obbligatorio)</label>

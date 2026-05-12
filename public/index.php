@@ -1,14 +1,19 @@
 <?php
 declare(strict_types=1);
 
-error_reporting(E_ALL);
-ini_set('display_errors', '1');
-
 define('ROOT', dirname(__DIR__));
 
 // Carica config e librerie di base
 $cfg = [];
 require ROOT . '/config.php';
+
+if (!empty($cfg['app']['debug'])) {
+    error_reporting(E_ALL);
+    ini_set('display_errors', '1');
+} else {
+    error_reporting(0);
+    ini_set('display_errors', '0');
+}
 require ROOT . '/lib/DB.php';
 require ROOT . '/lib/helpers.php';
 require ROOT . '/lib/CoverService.php';

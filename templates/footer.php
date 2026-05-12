@@ -22,7 +22,8 @@ if (!empty($_SESSION['patron']) && is_array($_SESSION['patron'])) {
         <?php
         // TAG CLOUD: ultimo elemento del main, solo su pagine pubbliche OPAC
         // Esclusa dalla scheda singola (page=item) per non disturbare i soggetti specifici.
-        if (in_array($pageId, ['home', 'search', 'search_advanced'], true)) {
+        // 'home' esclusa: ha già la propria sezione "Esplora per tema" con chip stilizzate
+        if (in_array($pageId, ['search', 'search_advanced'], true)) {
             include __DIR__ . '/tag_cloud.php';
         }
         ?>
@@ -110,7 +111,7 @@ if (!empty($_SESSION['patron']) && is_array($_SESSION['patron'])) {
                                 </a>
                             </li>
                             <li>
-                                <a href="<?= htmlspecialchars($base, ENT_QUOTES) ?>/index.php?page=privacy">
+                                <a href="https://www.anpiudine.org/privacy-policy/" target="_blank" rel="noopener">
                                     Privacy Policy
                                 </a>
                             </li>
@@ -159,5 +160,161 @@ if (!empty($_SESSION['patron']) && is_array($_SESSION['patron'])) {
             </div><!-- /.site-footer-inner -->
         </div><!-- /.container -->
     </footer>
+
+<script>
+/* Autocomplete per tutti gli input con data-autocomplete="1" */
+(function () {
+  'use strict';
+
+  const BASE = <?= json_encode(rtrim((string)$base, '/')) ?>;
+
+  function escHtml(s) {
+    return s.replace(/[&<>"']/g, function(c) {
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  function initAc(input) {
+    // Wrap the input in .ac-wrap (only if not already done)
+    let wrap = input.parentElement;
+    if (!wrap.classList.contains('ac-wrap')) {
+      wrap = document.createElement('div');
+      wrap.className = 'ac-wrap';
+      input.parentNode.insertBefore(wrap, input);
+      wrap.appendChild(input);
+    }
+
+    let dropdown = null;
+    let timer    = null;
+    let active   = -1;
+    let current  = [];
+
+    function items() { return dropdown ? Array.from(dropdown.querySelectorAll('.ac-item')) : []; }
+
+    function setActive(i) {
+      items().forEach(function(el, idx) { el.classList.toggle('ac-active', idx === i); });
+      active = i;
+    }
+
+    function close() {
+      if (dropdown) { dropdown.remove(); dropdown = null; active = -1; current = []; }
+    }
+
+    function render(list) {
+      close();
+      if (!list || list.length === 0) return;
+      const ICONS  = { title: '📖', author: '✍️', topic: '🏷️' };
+      const LABELS = { title: 'Titolo', author: 'Autore', topic: 'Soggetto' };
+      dropdown = document.createElement('ul');
+      dropdown.className = 'ac-dropdown';
+      dropdown.setAttribute('role', 'listbox');
+      var lastType = null;
+      list.forEach(function(s) {
+        const li = document.createElement('li');
+        var cls = 'ac-item';
+        if (lastType !== null && s.type !== lastType) cls += ' ac-item--group-start';
+        li.className = cls;
+        li.setAttribute('role', 'option');
+        li.innerHTML =
+          '<span class="ac-item-icon">' + (ICONS[s.type] || '📄') + '</span>' +
+          '<span class="ac-item-body">' +
+            '<span class="ac-item-label">' + escHtml(s.label) + '</span>' +
+            (s.sub ? '<span class="ac-item-sub">' + escHtml(s.sub) + '</span>' : '') +
+          '</span>' +
+          '<span class="ac-item-type">' + escHtml(LABELS[s.type] || '') + '</span>';
+        li.addEventListener('mousedown', function(e) {
+          e.preventDefault();
+          pick(s);
+        });
+        dropdown.appendChild(li);
+        lastType = s.type;
+      });
+      current = list;
+      wrap.appendChild(dropdown);
+    }
+
+    function pick(s) {
+      window.location.href = s.url;
+    }
+
+    function doFetch(q) {
+      // Se siamo in una riga di search_advanced, leggi il campo selezionato
+      var url = BASE + '/ajax_autocomplete.php?q=' + encodeURIComponent(q);
+      var advRow = input.closest('.adv-row');
+      if (advRow) {
+        var fieldSel = advRow.querySelector('select.adv-field');
+        if (fieldSel) {
+          var f = fieldSel.value;
+          // isbn e publisher non hanno suggerimenti utili
+          if (f === 'isbn' || f === 'publisher') { close(); return; }
+          if (f === 'title' || f === 'author' || f === 'subject') {
+            url += '&type=' + encodeURIComponent(f);
+          }
+        }
+      }
+      fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function(r) { return r.json(); })
+      .then(function(d) { if (d.ok) render(d.suggestions); })
+      .catch(function() {});
+    }
+
+    input.addEventListener('input', function() {
+      clearTimeout(timer);
+      var q = input.value.trim();
+      if (q.length < 2) { close(); return; }
+      timer = setTimeout(function() { doFetch(q); }, 280);
+    });
+
+    input.addEventListener('keydown', function(e) {
+      var list = items();
+      if (!dropdown || list.length === 0) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault(); setActive(Math.min(active + 1, list.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault(); setActive(Math.max(active - 1, 0));
+      } else if (e.key === 'Enter' && active >= 0) {
+        e.preventDefault(); pick(current[active]);
+      } else if (e.key === 'Escape') {
+        close();
+      }
+    });
+
+    document.addEventListener('click', function(e) {
+      if (!wrap.contains(e.target)) close();
+    });
+  }
+
+  document.querySelectorAll('input[data-autocomplete]').forEach(initAc);
+  window._initAcInput = initAc;
+}());
+</script>
+
+<!-- Banner cookie / privacy -->
+<div id="cookie-bar" role="region" aria-label="Informativa cookie" style="display:none">
+  <p>
+    Questo sito utilizza cookie tecnici necessari al funzionamento.
+    Per maggiori informazioni consulta la
+    <a href="https://www.anpiudine.org/privacy-policy/" target="_blank" rel="noopener">
+      Privacy &amp; Cookie Policy
+    </a>
+    di ANPI Udine.
+  </p>
+  <button id="cookie-bar-accept" type="button">Ho capito</button>
+</div>
+<script>
+(function () {
+  var bar = document.getElementById('cookie-bar');
+  if (!bar) return;
+  try {
+    if (localStorage.getItem('cookieConsent') !== '1') {
+      bar.style.display = '';
+    }
+  } catch(e) { bar.style.display = ''; }
+  document.getElementById('cookie-bar-accept').addEventListener('click', function () {
+    try { localStorage.setItem('cookieConsent', '1'); } catch(e) {}
+    bar.style.display = 'none';
+  });
+}());
+</script>
 </body>
 </html>

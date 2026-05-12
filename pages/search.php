@@ -42,25 +42,54 @@ function search_fetch_availability_map(PDO $pdo, array $bibids): array
     foreach ($bibids as $id) $out[$id] = ['state' => 'unknown', 'label' => ''];
     $ph = implode(',', array_fill(0, count($bibids), '?'));
     try {
-        $stmt = $pdo->prepare("SELECT bibid, status_cd FROM biblio_copy WHERE bibid IN ($ph)");
+        $stmt = $pdo->prepare("
+            SELECT c.bibid, c.status_cd, COALESCE(s.description, c.status_cd) AS status_desc
+            FROM biblio_copy c
+            LEFT JOIN biblio_status_dm s ON s.code = c.status_cd
+            WHERE c.bibid IN ($ph)
+        ");
         $stmt->execute($bibids);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (\PDOException $e) { return $out; }
+
     $byBib = [];
     foreach ($rows as $r) {
-        $id = (int)($r['bibid'] ?? 0);
-        if ($id > 0) $byBib[$id][] = (string)($r['status_cd'] ?? '');
+        $id   = (int)($r['bibid'] ?? 0);
+        $code = strtolower(trim((string)($r['status_cd'] ?? '')));
+        if ($id > 0) $byBib[$id][$code] = (string)($r['status_desc'] ?? $code);
     }
+
+    // codici inattivi (scartato/perso): non influenzano il badge
+    $inactive = ['dis', 'lst'];
+    // priorità tra stati attivi: più basso = più rilevante da mostrare
+    $prio = ['in' => 1, 'out' => 2, 'ln' => 2, 'hld' => 3, 'mnd' => 4, 'ord' => 5, 'crt' => 6];
+
     foreach ($bibids as $id) {
         if (!isset($byBib[$id]) || $byBib[$id] === []) continue;
-        foreach ($byBib[$id] as $code) {
-            $code = strtolower(trim((string)$code));
-            if ($code === '' || $code === 'in') {
-                $out[$id] = ['state' => 'available', 'label' => '🟢 Disponibile'];
-                continue 2;
-            }
+        $codes = $byBib[$id]; // code => description
+
+        if (isset($codes['in']) || isset($codes[''])) {
+            $out[$id] = ['state' => 'available', 'label' => 'Disponibile'];
+            continue;
         }
-        $out[$id] = ['state' => 'unavailable', 'label' => '🔴 In prestito'];
+
+        $active = array_filter($codes, static fn($d, $c) => !in_array($c, $inactive, true), ARRAY_FILTER_USE_BOTH);
+        if ($active === []) continue; // solo copie scartate/perse: nessun badge
+
+        // scegli lo status più rilevante
+        $bestCode = array_key_first($active);
+        $bestPrio = $prio[$bestCode] ?? 99;
+        foreach ($active as $code => $desc) {
+            $p = $prio[$code] ?? 99;
+            if ($p < $bestPrio) { $bestPrio = $p; $bestCode = $code; }
+        }
+        $label = $active[$bestCode];
+        $state = match($bestCode) {
+            'hld'   => 'reserved',
+            'mnd', 'ord', 'crt' => 'other',
+            default => 'unavailable',
+        };
+        $out[$id] = ['state' => $state, 'label' => $label];
     }
     return $out;
 }
@@ -118,9 +147,9 @@ $whereParts = [];
 $params     = [];
 
 if ($q !== '') {
-    $terms = array_values(array_filter(preg_split('/\s+/', $q) ?: [], fn($t) => trim($t) !== ''));
-    foreach ($terms as $term) {
-        $pattern  = '%' . $term . '%';
+    $tokens = search_tokenize($q);
+    foreach ($tokens as $tok) {
+        $pattern  = '%' . $tok['value'] . '%';
         $subParts = [];
         foreach (['b.title', 'b.title_remainder', 'b.author', 'b.topic1', 'b.topic2', 'b.topic3', 'b.topic4', 'b.topic5'] as $col) {
             $subParts[] = "$col LIKE ?";
@@ -148,7 +177,7 @@ if ($subject !== '') {
     }
 }
 
-$whereSql = $whereParts !== [] ? 'WHERE ' . implode(' AND ', $whereParts) : '';
+$whereSql = 'WHERE b.opac_flg = \'Y\'' . ($whereParts !== [] ? ' AND ' . implode(' AND ', $whereParts) : '');
 
 $orderBySql = match($sort) {
     'title_desc'  => 'ORDER BY b.title DESC',
@@ -172,7 +201,7 @@ $availabilityMap = [];
 $alreadyHeldMap  = [];
 $gbApiKey        = $GLOBALS['cfg']['google_books']['api_key'] ?? '';
 
-if ($hasSearch && $whereSql !== '') {
+if ($hasSearch) {
     try {
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM biblio b $whereSql");
         $stmt->execute($params);
@@ -258,12 +287,14 @@ $queryBase = [
                 value="<?= h($q !== '' ? $q : $subject) ?>"
                 placeholder="Titolo, autore, soggetto, parole chiave…"
                 autocomplete="off"
+                data-autocomplete="1"
             >
             <button type="submit" class="btn-primary">Cerca</button>
         </div>
 
         <div class="search-form-simple-links">
             <a href="index.php?page=search_advanced">Ricerca avanzata →</a>
+            <span class="search-tip">Virgolette per frase esatta: <code>"guerra partigiana"</code></span>
         </div>
     </form>
 
@@ -388,29 +419,29 @@ $queryBase = [
                         if ($tv !== '') $tags[] = $tv;
                     }
                     try {
-                        $stmtSub = $pdo->prepare('SELECT tag, subfield_cd, field_data FROM biblio_field WHERE bibid = :bibid AND tag BETWEEN 600 AND 699 ORDER BY tag, fieldid');
+                        $stmtSub = $pdo->prepare('SELECT fieldid, tag, subfield_cd, field_data FROM biblio_field WHERE bibid = :bibid AND tag BETWEEN 600 AND 699 ORDER BY tag, fieldid');
                         $stmtSub->execute([':bibid' => $bibid]);
-                        $rowsSub      = $stmtSub->fetchAll(PDO::FETCH_ASSOC);
-                        $currentTag   = null;
-                        $currentParts = [];
-                        $marcSubjects = [];
+                        $rowsSub         = $stmtSub->fetchAll(PDO::FETCH_ASSOC);
+                        $currentFieldid  = null;
+                        $currentParts    = [];
+                        $marcSubjects    = [];
                         foreach ($rowsSub as $subRow) {
-                            $tag  = (int)($subRow['tag'] ?? 0);
-                            $code = (string)($subRow['subfield_cd'] ?? '');
-                            $data = trim((string)($subRow['field_data'] ?? ''));
+                            $fieldid = (int)($subRow['fieldid'] ?? 0);
+                            $code    = (string)($subRow['subfield_cd'] ?? '');
+                            $data    = trim((string)($subRow['field_data'] ?? ''));
                             if (in_array($code, ['a','x','y','z'], true)) {
-                                if ($currentTag !== null && $tag !== $currentTag && $currentParts !== []) {
+                                if ($currentFieldid !== null && $fieldid !== $currentFieldid && $currentParts !== []) {
                                     $marcSubjects[] = implode(' -- ', $currentParts);
                                     $currentParts   = [];
                                 }
-                                $currentTag = $tag;
+                                $currentFieldid = $fieldid;
                                 if ($data !== '') $currentParts[] = $data;
                                 continue;
                             }
                             if ($currentParts !== []) {
                                 $marcSubjects[] = implode(' -- ', $currentParts);
                                 $currentParts   = [];
-                                $currentTag     = null;
+                                $currentFieldid = null;
                             }
                         }
                         if ($currentParts !== []) $marcSubjects[] = implode(' -- ', $currentParts);

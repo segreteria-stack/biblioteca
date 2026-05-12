@@ -42,6 +42,7 @@ function home_fetch_carousel_items(PDO $pdo, int $maxItems = 8): array
                     LIMIT 1
                 ) AS isbn
             FROM biblio b
+            WHERE b.opac_flg = \'Y\'
             ORDER BY b.bibid DESC
             LIMIT ' . (int) $maxItems . '
         ';
@@ -91,6 +92,31 @@ function home_fetch_carousel_items(PDO $pdo, int $maxItems = 8): array
 
 $carouselItems = home_fetch_carousel_items($pdo, 8);
 $gbApiKey = $GLOBALS['cfg']['google_books']['api_key'] ?? '';
+
+// Contatore titoli in catalogo
+$totalTitoli = 0;
+try {
+    $totalTitoli = (int)$pdo->query("SELECT COUNT(*) FROM biblio WHERE opac_flg = 'Y'")->fetchColumn();
+} catch (\PDOException $e) {}
+
+// Top 12 soggetti per la sezione "Esplora per tema"
+$topTopics = [];
+try {
+    $sqlTopics = "
+        SELECT topic, COUNT(*) AS cnt
+        FROM (
+            SELECT topic1 AS topic FROM biblio WHERE opac_flg = 'Y' AND topic1 <> ''
+            UNION ALL SELECT topic2 FROM biblio WHERE opac_flg = 'Y' AND topic2 <> ''
+            UNION ALL SELECT topic3 FROM biblio WHERE opac_flg = 'Y' AND topic3 <> ''
+            UNION ALL SELECT topic4 FROM biblio WHERE opac_flg = 'Y' AND topic4 <> ''
+            UNION ALL SELECT topic5 FROM biblio WHERE opac_flg = 'Y' AND topic5 <> ''
+        ) t
+        GROUP BY topic
+        ORDER BY cnt DESC
+        LIMIT 14
+    ";
+    $topTopics = $pdo->query($sqlTopics)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+} catch (\PDOException $e) {}
 ?>
 
 <!-- HERO A TUTTA LARGHEZZA CON IMMAGINE STORICA + RICERCA -->
@@ -101,6 +127,12 @@ $gbApiKey = $GLOBALS['cfg']['google_books']['api_key'] ?? '';
                 <span class="home-hero-badge-dot"></span>
                 Archivio vivo della memoria democratica
             </div>
+            <?php if ($totalTitoli > 0): ?>
+            <div class="home-hero-stat">
+                <strong><?= number_format($totalTitoli, 0, ',', '.') ?></strong>
+                <span>titoli in catalogo</span>
+            </div>
+            <?php endif; ?>
             <div class="home-hero-tagline">Biblioteca · Archivi · Memorie</div>
 
             <h1>Biblioteca<br>della Resistenza</h1>
@@ -124,6 +156,8 @@ $gbApiKey = $GLOBALS['cfg']['google_books']['api_key'] ?? '';
                         name="q"
                         value="<?= h((string) ($_GET['q'] ?? '')) ?>"
                         placeholder="Titolo, autore, soggetto…"
+                        autocomplete="off"
+                        data-autocomplete="1"
                         autofocus
                     >
                     <button type="submit" class="btn-primary">
@@ -151,6 +185,23 @@ $gbApiKey = $GLOBALS['cfg']['google_books']['api_key'] ?? '';
             Alcune funzioni sono ancora in lavorazione.
         </div>
     </header>
+
+    <?php if (!empty($topTopics)): ?>
+        <section class="home-highlight home-highlight--topics">
+            <h2 class="home-highlight-title">
+                Esplora per tema
+                <a class="home-highlight-more" href="<?= h($baseUrl) ?>/index.php?page=topics">Tutti i temi →</a>
+            </h2>
+            <div class="home-topics-chips">
+                <?php foreach ($topTopics as $t): ?>
+                    <a
+                        class="home-topic-chip"
+                        href="<?= h($baseUrl) ?>/index.php?page=search&amp;subject=<?= urlencode((string)$t['topic']) ?>"
+                    ><?= h((string)$t['topic']) ?> <span class="home-topic-chip-count"><?= (int)$t['cnt'] ?></span></a>
+                <?php endforeach; ?>
+            </div>
+        </section>
+    <?php endif; ?>
 
     <?php if (!empty($carouselItems)): ?>
         <section class="home-highlight home-highlight--latest">

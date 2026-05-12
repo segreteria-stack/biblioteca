@@ -1,4 +1,213 @@
-@import url("base.css");
+/* =========================================================
+   BASE: PALETTE, FONT, RESET, TIPOGRAFIA
+   ========================================================= */
+
+/* Import Google Font PT Serif (solo testo di lettura) */
+@import url('https://fonts.googleapis.com/css2?family=PT+Serif:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
+/* Palette principale (accessibile) */
+:root {
+  --color-primary: #e11e28;      /* Rosso ANPI Udine – azioni e focus */
+  --color-bg-body: #FFFFFF;      /* Allineato ad anpiudine.org */
+  --color-text-main: #222426;    /* Testo principale come sito madre */
+
+  /* Derivati */
+  --color-bg-card: #FFFFFF;
+  --color-border-subtle: #DDDDDD;
+  --color-border-input: #CCCCCC;
+  --color-border-input-focus: #e11e28;
+  --color-text-muted: #6b6c6e;
+
+  /* Pulsanti */
+  --btn-primary-bg: #e11e28;
+  --btn-primary-bg-hover: #b40f1f;
+  --btn-primary-text: #FFFFFF;
+
+  /* Stati */
+  --focus-ring: 0 0 0 2px rgba(225, 17, 40, 0.35);
+
+  /* Font di riferimento */
+  --font-sans: "MessinaSansWeb", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-serif: "PT Serif", Times, serif;
+}
+
+/* =========================================================
+   FONT FACE – MESSINASANSWEB BLACK
+   ========================================================= */
+
+@font-face {
+  font-family: "MessinaSansWeb";
+  src: url("../assets/fonts/MessinaSansWeb-Black.woff2") format("woff2"),
+       url("../assets/fonts/MessinaSansWeb-Black.woff") format("woff");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* =========================================================
+   CLASSI DI COMODO – PT SERIF
+   ========================================================= */
+
+.pt-serif-regular {
+  font-family: var(--font-serif);
+  font-weight: 400;
+}
+
+.pt-serif-bold {
+  font-family: var(--font-serif);
+  font-weight: 700;
+}
+
+.pt-serif-regular-italic {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-style: italic;
+}
+
+.pt-serif-bold-italic {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-style: italic;
+}
+
+/* =========================================================
+   RESET DI BASE
+   ========================================================= */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 17px; /* allineato ad anpiudine.org */
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-serif);   /* SERIF-FIRST */
+  font-size: 1rem;
+  line-height: 1.35;                /* come sito madre */
+  color: var(--color-text-main);
+  background-color: var(--color-bg-body);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* =========================================================
+   LINK
+   ========================================================= */
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  color: #cd1b24;   /* hover coerente anpiudine */
+  text-decoration: none;
+}
+
+/* =========================================================
+   TITOLI – MESSINA SANS
+   ========================================================= */
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-sans);
+  margin: 0 0 0.6rem 0;
+  color: #222426;
+  font-weight: 800;
+}
+
+h1 {
+  font-size: 1.6rem;
+  line-height: 1.15;
+}
+
+h2 {
+  font-size: 1.45rem;
+  line-height: 1.2;
+}
+
+h3 {
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+
+h4 {
+  font-size: 1.1rem;
+  line-height: 1.25;
+}
+
+/* =========================================================
+   PARAGRAFI
+   ========================================================= */
+
+p {
+  margin: 0 0 0.75rem 0;
+  font-family: var(--font-serif);
+}
+
+/* =========================================================
+   TIPOGRAFIA DI LETTURA – OPAC
+   ========================================================= */
+
+.home-info p,
+.home-status,
+.search-help,
+.page-regolamento p,
+.page-regolamento li,
+.generic-box p,
+.auth-box p,
+.footer-address,
+.footer-contact-links,
+.footer-more,
+.footer-opening-hours,
+.footer-copy,
+.result-card-abstract,
+.result-card-meta,
+.result-card-author,
+.result-card-year,
+.cover-slide-title,
+.cover-slide-author,
+.result-card-tags .result-tag,
+.page-advanced-search .search-help,
+.staff-card-note {
+  font-family: var(--font-serif);
+}
+
+/* =========================================================
+   UI ELEMENTS – force sans-serif for icons & controls
+   ========================================================= */
+
+button,
+input,
+select,
+textarea,
+nav,
+.main-nav,
+.nav-link,
+.header-actions,
+.btn-primary,
+.btn-secondary,
+.btn-link,
+.breadcrumb,
+.pagination,
+.page-link,
+.back-link,
+.back-to-results,
+[class*="icon"],
+[class*="btn"],
+[class*="nav"] {
+  font-family: var(--font-sans);
+}
 
 /* Override palette principale ANPI Udine
    ========================================================= */
@@ -1402,32 +1611,27 @@ input[type="submit"] {
   .page-section--home {
     display: grid;
     grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr);
-    grid-template-areas:
-      "hero hero"
-      "search info"
-      "highlight info";
     column-gap: 2rem;
-    row-gap: 1.75rem;
+    align-items: start;
   }
 
+  /* Header di stato: riga intera */
   .home-hero {
-    grid-area: hero;
+    grid-column: 1 / -1;
     margin-bottom: 0.25rem;
   }
 
-  .home-search {
-    grid-area: search;
-    margin-top: 0.75rem;
-    margin-bottom: 0.75rem;
-  }
-
+  /* Colonna destra: info biblioteca, fissa dalla riga 2 in giù */
   .home-info {
-    grid-area: info;
+    grid-column: 2;
+    grid-row: 2 / span 10;
     margin-top: 0.75rem;
   }
 
-  .home-highlight {
-    grid-area: highlight;
+  /* Tutto il resto scorre in colonna 1 (topics, libri, donazioni…) */
+  .home-highlight,
+  .home-donazioni-callout {
+    grid-column: 1;
     margin-top: 0.75rem;
   }
 }
@@ -2052,7 +2256,8 @@ input[type="submit"] {
 
 .home-hero-banner {
   position: relative;
-  margin-bottom: 2.75rem;              /* più respiro prima della card centrale */
+  margin-top: 1.75rem;                 /* stacca dall'header sticky */
+  margin-bottom: 2.75rem;             /* respiro prima della card centrale */
   color: #f9fafb;
   font-family: "MessinaSansWeb", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background-image: url("../assets/FOTO COPERTINA_5.png");
@@ -3785,3 +3990,536 @@ input[type="submit"] {
   border: 1px solid #fecaca;
 }
 
+/* =========================================================
+   HOME – Stat counter nell'hero
+   ========================================================= */
+.home-hero-stat {
+  display: block;
+  margin-top: 1rem;
+  line-height: 1;
+}
+.home-hero-stat strong {
+  display: block;
+  font-size: 3rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+.home-hero-stat span,
+.home-hero-stat {
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #d1d5db;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+  margin-top: 0.2rem;
+}
+
+/* =========================================================
+   HOME – Sezione "Esplora per tema"
+   ========================================================= */
+.home-highlight--topics {
+  padding: 1.25rem 1.5rem 1.5rem;
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 10px;
+  margin-bottom: 2.25rem;
+}
+
+/* Titolo sezione: flex per allineare il link "→ Tutti i temi" a destra */
+.home-highlight-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.home-highlight-more {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--color-primary, #e11e28);
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.home-highlight-more:hover,
+.home-highlight-more:focus-visible {
+  text-decoration: underline;
+}
+
+.home-topics-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.85rem;
+}
+
+.home-topic-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem 0.3rem 0.8rem;
+  border-radius: 999px;
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0,0,0,.05);
+  color: #374151;
+  font-size: 0.86rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color 0.13s, border-color 0.13s, color 0.13s, box-shadow 0.13s;
+}
+.home-topic-chip:hover,
+.home-topic-chip:focus-visible {
+  background-color: #fff1f1;
+  border-color: #fca5a5;
+  color: #991b1b;
+  box-shadow: 0 2px 6px rgba(185,28,28,.12);
+}
+
+.home-topic-chip-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5em;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background-color: #f3f4f6;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #6b7280;
+  line-height: 1.4;
+}
+.home-topic-chip:hover .home-topic-chip-count,
+.home-topic-chip:focus-visible .home-topic-chip-count {
+  background-color: #fecaca;
+  color: #991b1b;
+}
+
+
+/* =========================================================
+   AUTOCOMPLETE DROPDOWN
+   ========================================================= */
+.ac-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ac-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 300;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.13);
+  max-height: 340px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  list-style: none;
+  margin: 0;
+  padding: 0.3rem 0;
+  font-size: 0.88rem;
+  min-width: 0;
+}
+
+.ac-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.48rem 0.85rem;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: background-color 0.08s, border-color 0.08s;
+  min-width: 0;
+  overflow: hidden;
+}
+.ac-item:hover,
+.ac-item.ac-active {
+  background-color: #f9fafb;
+  border-left-color: var(--color-primary, #e11e28);
+}
+
+/* Separatore visivo tra gruppi (titoli / autori / soggetti) */
+.ac-item--group-start {
+  border-top: 1px solid #f0f0f0;
+  margin-top: 2px;
+  padding-top: 0.55rem;
+}
+
+.ac-item-icon {
+  font-size: 0.9rem;
+  width: 1.2em;
+  text-align: center;
+  flex-shrink: 0;
+  color: #9ca3af;
+  padding-top: 1px;
+}
+
+.ac-item-body {
+  flex: 1 1 0%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.ac-item-label {
+  display: block;
+  font-weight: 600;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.ac-item-sub {
+  display: block;
+  font-size: 0.76rem;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.ac-item-type {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  flex-shrink: 0;
+  white-space: nowrap;
+  align-self: center;
+  min-width: 4.5em;
+  text-align: right;
+}
+
+/* ── Utility login bar ─────────────────────────────────────────────── */
+.utility-login-bar {
+  padding: 0.3rem 0;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* ── Banner cookie consent ─────────────────────────────────────────── */
+#cookie-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  background: #1a1a1a;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  color: #f5f5f5;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  font-size: 0.85rem;
+  padding: 0.75rem 1.25rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  box-shadow: 0 2px 12px rgba(0,0,0,.35);
+}
+#cookie-bar p {
+  margin: 0;
+  flex: 1 1 280px;
+  line-height: 1.45;
+  font-family: inherit;
+  color: inherit;
+}
+#cookie-bar a {
+  color: #f5c6c6;
+  text-decoration: underline;
+}
+#cookie-bar a:hover { color: #fff; }
+#cookie-bar-accept {
+  background: var(--color-primary, #e11e28);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.45rem 1.1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+}
+#cookie-bar-accept:hover { background: #b91c22; }
+
+/* Suggerimento ricerca con virgolette */
+.search-tip {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin-top: 0.35rem;
+}
+.search-tip code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #f3f4f6;
+  border-radius: 3px;
+  padding: 0.1em 0.35em;
+  font-size: 0.9em;
+  color: #374151;
+}
+
+/* Merged from extra_opac.css */
+.result-title:hover { text-decoration: underline; }
+
+/* =========================================================
+   STAFF CATALOG EDIT – LAYOUT E COMPONENTI
+   ========================================================= */
+
+.staff-block {
+  margin-top: 1.25rem;
+}
+
+.staff-block--edit {
+  margin-top: 1.5rem;
+}
+
+.alert--success {
+  margin-top: 0.75rem;
+  background-color: #ecfdf5;
+  border: 1px solid #6ee7b7;
+  padding: 0.75rem;
+  border-radius: 6px;
+}
+
+.alert--success p,
+.alert--error p {
+  margin: 0;
+}
+
+.alert--error {
+  margin-top: 0.75rem;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  padding: 0.75rem;
+  border-radius: 6px;
+  color: #991b1b;
+}
+
+.staff-result-item {
+  margin-bottom: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+/* Tabella copie */
+.copy-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  margin-top: 0.5rem;
+}
+
+.copy-table th {
+  padding: 0.5rem;
+  text-align: left;
+  border-bottom: 2px solid #e5e7eb;
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.copy-table td {
+  padding: 0.5rem;
+  vertical-align: middle;
+}
+
+.copy-table tr {
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.copy-table tr:last-child {
+  border-bottom: none;
+}
+
+.copy-table .copy-barcode {
+  font-family: monospace;
+}
+
+.copy-table .copy-edit-row td {
+  background: #f9fafb;
+  padding: 1rem;
+}
+
+.copy-inline-form {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.copy-inline-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.copy-inline-field label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-weight: 500;
+  margin-bottom: 0;
+}
+
+.copy-inline-field input,
+.copy-inline-field select {
+  padding: 0.3rem 0.45rem;
+  font-size: 0.85rem;
+}
+
+.copy-inline-actions {
+  display: flex;
+  gap: 0.35rem;
+  align-self: flex-end;
+}
+
+.copy-danger-actions {
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.btn-link--danger {
+  color: #9a3412;
+  font-size: 0.8rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: none;
+}
+
+.btn-link--delete {
+  color: #b91c1c;
+  font-size: 0.8rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.copy-new-barcode {
+  margin: 0.35rem 0 0.6rem;
+  padding: 0.6rem;
+  border: 1px solid #22c55e;
+  border-radius: 6px;
+  background: #f0fdf4;
+}
+
+.copy-new-barcode-label {
+  font-size: 0.85rem;
+  color: #15803d;
+  margin-bottom: 0.25rem;
+}
+
+.copy-new-barcode input {
+  width: 100%;
+  max-width: 240px;
+  font-size: 1.15rem;
+  font-family: monospace;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #86efac;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.staff-delete-box {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 2px solid #e5e7eb;
+}
+
+.staff-delete-box h3 {
+  font-size: 1rem;
+  margin-bottom: 0.4rem;
+}
+
+.staff-delete-warning {
+  margin-bottom: 0.6rem;
+  padding: 0.6rem;
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: #7f1d1d;
+}
+
+.btn-delete {
+  border-color: #b91c1c;
+  color: #b91c1c;
+}
+
+/* Modal aggiungi copia */
+.copy-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+
+.copy-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+}
+
+.copy-modal-box {
+  position: relative;
+  max-width: 560px;
+  margin: 8vh auto;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.25);
+}
+
+.copy-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.copy-modal-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.copy-modal-body {
+  padding: 1rem;
+}
+
+/* Btn aggiungi copia */
+.btn-add-copy {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #dc2626;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+}
+
+.btn-add-copy:hover {
+  text-decoration: underline;
+}

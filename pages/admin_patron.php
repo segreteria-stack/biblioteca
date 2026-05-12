@@ -6,7 +6,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 if (empty($_SESSION['staff_user_id'])) {
-    $baseUrl  = function_exists('base_url') ? base_url() : '';
+    $baseUrl  = base_url();
     $redirect = 'staff';
     header('Location: ' . $baseUrl . '/index.php?page=login&redirect=' . urlencode($redirect));
     exit;
@@ -15,7 +15,7 @@ if (empty($_SESSION['staff_user_id'])) {
 require_once __DIR__ . '/../lib/Validate.php';
 
 $title   = 'Scheda utente';
-$baseUrl = $cfg['app']['base_url'] ?? (function_exists('base_url') ? base_url() : '');
+$baseUrl = base_url();
 
 global $db;
 if (!($db instanceof PDO)) {
