@@ -35,14 +35,13 @@ function search_fetch_availability_map(PDO $pdo, array $bibids): array
 {
     static $defaultLabels = [
         'in'  => 'Disponibile',
-        'out' => 'In prestito',
         'ln'  => 'In prestito',
-        'hld' => 'Prenotato',
-        'mnd' => 'In manutenzione',
-        'ord' => 'Ordinato',
+        'out' => 'Non disponibile',
+        'hld' => 'In attesa',
+        'mnd' => 'In fase di restauro',
+        'ord' => 'Riservato',
         'crt' => 'Da reintegrare',
-        'dis' => 'Scartato',
-        'lst' => 'Perduto',
+        'lst' => 'Perso',
         '8'   => 'Escluso dal prestito',
     ];
 
@@ -98,8 +97,8 @@ function search_fetch_availability_map(PDO $pdo, array $bibids): array
         }
         $label = $labels[$bestCode] ?? ($defaultLabels[$bestCode] ?? $bestCode);
         $state = match($bestCode) {
-            'hld'         => 'reserved',
-            'mnd', 'ord', 'crt', '8' => 'other',
+            'hld', 'ord'  => 'reserved',
+            'mnd', 'crt', '8' => 'other',
             default       => 'unavailable',
         };
         $out[$id] = ['state' => $state, 'label' => $label];
