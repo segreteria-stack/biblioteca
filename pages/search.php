@@ -155,7 +155,7 @@ $sort = array_key_exists($sortRaw, $sortOptions) ? $sortRaw : 'title_asc';
 
 $perPageRaw = (int)($_GET['per_page'] ?? 0);
 $perPage    = in_array($perPageRaw, [10, 20, 50], true) ? $perPageRaw
-            : (defined('PAGE_SIZE') ? max(1, (int)PAGE_SIZE) : 20);
+            : (defined('PAGE_SIZE') ? max(1, (int)PAGE_SIZE) : 10);
 
 $page      = max(1, (int)($_GET['p'] ?? 1));
 $hasSearch = ($q !== '' || $subject !== '');

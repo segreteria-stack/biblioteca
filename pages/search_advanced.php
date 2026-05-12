@@ -285,8 +285,8 @@ $yearFrom     = ctype_digit($yearFromRaw) ? (int)$yearFromRaw : 0;
 $yearTo       = ctype_digit($yearToRaw)   ? (int)$yearToRaw   : 0;
 
 $page       = max(1, (int)($_GET['p'] ?? 1));
-$perPageRaw = (int)($_GET['per_page'] ?? 20);
-$perPage    = in_array($perPageRaw, [10, 20, 50], true) ? $perPageRaw : 20;
+$perPageRaw = (int)($_GET['per_page'] ?? 10);
+$perPage    = in_array($perPageRaw, [10, 20, 50], true) ? $perPageRaw : 10;
 $sortRaw    = (string)($_GET['sort'] ?? 'title_asc');
 $orderBy    = mapSort($sortRaw);
 
