@@ -180,16 +180,25 @@ function ncn_extract_isbn_marc(array $marc): string
 }
 
 // ============================================================
-// SHARED HELPERS — barcode automatico
+// SHARED HELPERS — inserimento copia con barcode univoco
 // ============================================================
 
-function ncn_next_barcode(PDO $pdo, int $bibid): array
+/**
+ * Inserisce una nuova copia in biblio_copy lasciando che MySQL assegni
+ * copyid via AUTO_INCREMENT per-gruppo (MyISAM composite PK bibid+copyid).
+ * Questo evita la race condition del vecchio MAX(copyid)+1.
+ * Restituisce [copyid, barcode].
+ */
+function ncn_insert_copy(PDO $pdo, int $bibid, string $status = 'in'): array
 {
-    $stmt = $pdo->prepare('SELECT COALESCE(MAX(copyid),0)+1 FROM biblio_copy WHERE bibid=?');
-    $stmt->execute([$bibid]);
-    $copyid  = (int)$stmt->fetchColumn();
+    // INSERT senza copyid: MySQL assegna il valore atomicamente
+    $pdo->prepare('INSERT INTO biblio_copy (bibid,create_dt,barcode_nmbr,status_cd,status_begin_dt,renewal_count) VALUES (?,NOW(),\'\',?,NOW(),0)')
+        ->execute([$bibid, $status]);
+    $copyid  = (int)$pdo->lastInsertId();
     $barcode = str_pad((string)$bibid, 5, '0', STR_PAD_LEFT)
              . str_pad((string)$copyid, 2, '0', STR_PAD_LEFT);
+    $pdo->prepare('UPDATE biblio_copy SET barcode_nmbr=? WHERE bibid=? AND copyid=?')
+        ->execute([$barcode, $bibid, $copyid]);
     return [$copyid, $barcode];
 }
 
@@ -275,11 +284,7 @@ if ($method === 'manual') {
             ]);
             $manualBibid = (int)$pdo->lastInsertId();
 
-            [$copyid, $barcode] = ncn_next_barcode($pdo, $manualBibid);
-            $pdo->prepare('INSERT INTO biblio_copy
-                (bibid,copyid,create_dt,barcode_nmbr,status_cd,status_begin_dt,renewal_count)
-                VALUES (?,?,NOW(),?,\'in\',NOW(),0)')
-                ->execute([$manualBibid, $copyid, $barcode]);
+            [$copyid, $barcode] = ncn_insert_copy($pdo, $manualBibid);
             $manualBarcode = $barcode;
 
             foreach ([
@@ -447,9 +452,7 @@ if ($method === 'file_import') {
             ncn_sync_index_ext($pdo, $fileNewBibid, $isbn, $year, $pparts_s[1] ?? '', $pparts_s[0] ?? '');
 
             // crea copia fisica (tutti gli altri metodi lo fanno)
-            [$copyid, $barcode] = ncn_next_barcode($pdo, $fileNewBibid);
-            $pdo->prepare('INSERT INTO biblio_copy (bibid,copyid,create_dt,barcode_nmbr,status_cd,status_begin_dt,renewal_count) VALUES (?,?,NOW(),?,\'in\',NOW(),0)')
-                ->execute([$fileNewBibid, $copyid, $barcode]);
+            [$copyid, $barcode] = ncn_insert_copy($pdo, $fileNewBibid);
 
             $pdo->commit();
             $fileStep    = 3;
@@ -502,7 +505,7 @@ if ($method === 'marcxml') {
                     (title,title_remainder,responsibility_stmt,author,material_cd,collection_cd,topic1,topic2,topic3,topic4,topic5,opac_flg,create_dt,last_change_dt,last_change_userid)
                     VALUES (?,?,?,?,?,?,?,?,?,?,?,\'Y\',NOW(),NOW(),?)');
                 $insF = $pdo->prepare('INSERT INTO biblio_field (bibid,tag,subfield_cd,field_data) VALUES (?,?,?,?)');
-                $insC = $pdo->prepare('INSERT INTO biblio_copy (bibid,copyid,barcode_nmbr,status_cd,create_dt,status_begin_dt,renewal_count) VALUES (?,?,?,\'in\',NOW(),NOW(),0)');
+                // $insC non serve più: ncn_insert_copy gestisce l'inserimento atomico
 
                 $pdo->beginTransaction();
 
@@ -568,8 +571,7 @@ if ($method === 'marcxml') {
                     if ($phys     !== '') $insF->execute([$bibid,300,'a',$phys]);
 
                     if ($createCopy) {
-                        [$copyid, $barcode] = ncn_next_barcode($pdo, $bibid);
-                        $insC->execute([$bibid, $copyid, $barcode]);
+                        [$copyid, $barcode] = ncn_insert_copy($pdo, $bibid);
                     }
 
                     ncn_sync_index_ext($pdo, $bibid, $isbn ?? '', $pubAnno, $pubEdit, $pubPlace);

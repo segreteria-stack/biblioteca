@@ -166,14 +166,23 @@ function upsertField(\PDO $pdo, int $bibid, int $tag, string $subfield, ?string 
  * Genera il prossimo (copyid, barcode) per un bibid.
  * Barcode = bibid a 5 cifre + copyid a 2 cifre.
  */
-function nextBarcode(\PDO $pdo, int $bibid): array
+/**
+ * Inserisce una nuova copia lasciando che MySQL assegni copyid via AUTO_INCREMENT
+ * per-gruppo (MyISAM composite PK bibid+copyid) — atomico, senza race condition.
+ * Restituisce [copyid, barcode].
+ */
+function insertCopy(\PDO $pdo, int $bibid, string $status = 'in', string $barcode = ''): array
 {
-    $st = $pdo->prepare('SELECT COALESCE(MAX(copyid), 0) + 1 FROM biblio_copy WHERE bibid = ?');
-    $st->execute([$bibid]);
-    $copyid  = (int)$st->fetchColumn();
-    $barcode = str_pad((string)$bibid, 5, '0', STR_PAD_LEFT)
-             . str_pad((string)$copyid, 2, '0', STR_PAD_LEFT);
-    return [$copyid, $barcode];
+    // INSERT senza copyid: MySQL lo assegna atomicamente (per-group AUTO_INCREMENT)
+    $pdo->prepare('INSERT INTO biblio_copy (bibid,create_dt,barcode_nmbr,status_cd,status_begin_dt,renewal_count) VALUES (?,NOW(),\'\',?,NOW(),0)')
+        ->execute([$bibid, $status]);
+    $copyid     = (int)$pdo->lastInsertId();
+    $autoBarcode = str_pad((string)$bibid, 5, '0', STR_PAD_LEFT)
+                 . str_pad((string)$copyid, 2, '0', STR_PAD_LEFT);
+    $finalBarcode = ($barcode !== '' && strlen($barcode) <= 20) ? $barcode : $autoBarcode;
+    $pdo->prepare('UPDATE biblio_copy SET barcode_nmbr=? WHERE bibid=? AND copyid=?')
+        ->execute([$finalBarcode, $bibid, $copyid]);
+    return [$copyid, $finalBarcode];
 }
 
 /**
@@ -418,10 +427,8 @@ if ($action === 'import_record') {
         // FIX: popola topic1..5 anche in import_record
         updateTopics($pdo, $bibid, $data['soggetti'] ?? []);
 
-        // Crea copia fisica in biblio_copy
-        [$copyid, $barcode] = nextBarcode($pdo, $bibid);
-        $pdo->prepare("INSERT INTO biblio_copy (bibid, copyid, barcode_nmbr, status_cd, create_dt, status_begin_dt, renewal_count) VALUES (?, ?, ?, 'in', NOW(), NOW(), 0)")
-            ->execute([$bibid, $copyid, $barcode]);
+        // Crea copia fisica in biblio_copy (copyid assegnato atomicamente da MySQL)
+        [$copyid, $barcode] = insertCopy($pdo, $bibid);
         $inserted[] = 'copia';
 
         syncIndexExt($pdo, $bibid, (string)($data['isbn_sbn'] ?? ''), (string)($data['anno'] ?? ''),
@@ -1257,27 +1264,10 @@ if ($action === 'import_record_with_data') {
         // Topic denormalizzati
         updateTopics($pdo, $bibid, array_values($soggetti));
 
-        // Collocazione fisica (copia 1) — SEMPRE creata
-        $barcode = trim($data['barcode']    ?? '');
-        $status  = trim($data['status_cd']  ?? 'in') ?: 'in';
-
-        // Se barcode vuoto o troppo lungo, genera automatico bibid+copyid (max 7 cifre, nel varchar 20)
-        [$copyid, $autoBarcode] = nextBarcode($pdo, $bibid);
-        if ($barcode === '' || strlen($barcode) > 20) {
-            $barcode = $autoBarcode;
-        }
-
-        $insCopy = $pdo->prepare("
-            INSERT INTO biblio_copy
-                (bibid, copyid, barcode_nmbr, status_cd, create_dt, status_begin_dt, renewal_count)
-            VALUES (?, ?, ?, ?, NOW(), NOW(), 0)
-        ");
-        $insCopy->execute([
-            $bibid,
-            $copyid,
-            $barcode,
-            $status,
-        ]);
+        // Collocazione fisica (copia 1) — SEMPRE creata; copyid atomico via AUTO_INCREMENT MySQL
+        $barcode = trim($data['barcode']   ?? '');
+        $status  = trim($data['status_cd'] ?? 'in') ?: 'in';
+        [$copyid, $barcode] = insertCopy($pdo, $bibid, $status, $barcode);
         $inserted[] = 'copia';
 
         syncIndexExt($pdo, $bibid, (string)($data['isbn'] ?? ''), (string)($data['anno'] ?? ''),
