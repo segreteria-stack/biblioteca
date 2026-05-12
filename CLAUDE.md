@@ -75,6 +75,11 @@ sql/                schema DB di riferimento (anpiudine-or1d94_2.sql)
 - Valutare FULLTEXT index MySQL vs LIKE su campi concatenati
 - Verificare impatto su performance con il volume dati attuale
 
+### 7. Eliminare ridondanze nella scheda item
+- Rivedere `pages/item.php`: identificare campi duplicati o visualizzati più volte
+- Verificare coerenza con i dati reali in `biblio` e `biblio_field` (stessi dati esposti tramite tag MARC diversi)
+- Obiettivo: scheda pulita, senza ripetizioni, leggibile dall'utente finale
+
 ### 6. Miglioramento maschera importazione da SBN
 - Rivedere UX del form in `pages/staff_catalog_new.php` e `public/ajax_sbn_enrich.php`
 - Possibili aree di miglioramento: feedback visivo durante import, gestione errori, anteprima record prima del salvataggio, importazione multipla
