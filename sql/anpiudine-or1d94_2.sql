@@ -723,7 +723,8 @@ ALTER TABLE `biblio` ADD FULLTEXT KEY `ft_subjects` (`topic1`,`topic2`,`topic3`,
 --
 ALTER TABLE `biblio_copy`
   ADD PRIMARY KEY (`bibid`,`copyid`),
-  ADD UNIQUE KEY `barcode_index` (`barcode_nmbr`),
+  ADD UNIQUE KEY `uq_barcode` (`barcode_nmbr`),
+  ADD KEY `barcode_index` (`barcode_nmbr`),
   ADD KEY `mbr_index` (`mbrid`),
   ADD KEY `idx_copy_bibid_status` (`bibid`,`status_cd`);
 
