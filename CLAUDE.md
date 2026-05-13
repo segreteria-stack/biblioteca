@@ -84,6 +84,7 @@ sql/                schema DB di riferimento (anpiudine-or1d94_2.sql)
 - Rivedere UX del form in `pages/staff_catalog_new.php` e `public/ajax_sbn_enrich.php`
 - Possibili aree di miglioramento: feedback visivo durante import, gestione errori, anteprima record prima del salvataggio, importazione multipla
 - Verificare casi edge: record SBN con dati mancanti, duplicati, MARCXML malformato
+- **Bug noto**: ricerca per ISBN/titolo/autore non importa alcuni campi — ISBN, numero pagine e altri dettagli tecnici risultano vuoti dopo l'import; indagare quale ramo del codice gestisce questi casi e perché i campi non vengono mappati dal MARCXML SBN
 
 ---
 
