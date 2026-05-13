@@ -46,7 +46,11 @@ class PatronAuth
     ");
     $st->execute([$login, $login]);
     $u = $st->fetch(PDO::FETCH_ASSOC);
-    if ($u && !empty($u['pass_hash']) && password_verify($password, (string)$u['pass_hash'])) {
+    if ($u && !empty($u['pass_hash'])) {
+      // Se patron_auth esiste con hash valido, NON usare mai il fallback MD5
+      if (!password_verify($password, (string)$u['pass_hash'])) {
+        return false;
+      }
       $_SESSION['patron'] = [
         'mbrid' => (int)$u['mbrid'],
         'name'  => trim(($u['first_name'] ?? '') . ' ' . ($u['last_name'] ?? '')),
@@ -55,6 +59,8 @@ class PatronAuth
       return true;
     }
     // 2) Fallback storico: member.pass_user MD5 (barcode o email)
+    //    Solo per account senza patron_auth o con pass_hash vuoto
+    if ($password === '') return false; // mai accettare password vuota nel fallback
     $st2 = $db->prepare("
       SELECT mbrid, barcode_nmbr, first_name, last_name, email, pass_user
       FROM {$memberTbl}

@@ -76,7 +76,7 @@ if ($err === '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $db->beginTransaction();
 
                 $tmpBarcode     = 'TMP' . bin2hex(random_bytes(6));
-                $passUserMd5    = md5('');
+                $passUserMd5    = md5(bin2hex(random_bytes(16))); // valore casuale: non usare md5('') che è noto
                 $classification = 1;
 
                 $insMember = $db->prepare("
