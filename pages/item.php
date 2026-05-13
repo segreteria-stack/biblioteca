@@ -462,7 +462,7 @@ try {
     }
 } catch (Throwable $e) { $alreadyHeld = false; }
 
-$hasTechData = ($isbnDisplay !== '' || $oclcDisplay !== '' || !empty($marcExtra));
+$hasTechData = $isbnDisplay !== '' || $oclcDisplay !== '' || array_filter($marcExtra, fn($v) => $v !== '');
 
 $otherByAuthor   = [];
 $authorSearchUrl = '';
@@ -659,13 +659,6 @@ $needsCoverJs   = ($isbnForJs !== '' && $gbApiKey !== '' && !CoverService::hasLo
                         </div>
                     <?php endif; ?>
 
-                    <?php if ($pagesDisplay !== ''): ?>
-                        <div class="item-header-row">
-                            <dt>Pagine</dt>
-                            <dd><?= h($pagesDisplay) ?></dd>
-                        </div>
-                    <?php endif; ?>
-
                     <?php if ($materialDescr !== ''): ?>
                         <div class="item-header-row">
                             <dt>Tipo di materiale</dt>
@@ -749,7 +742,7 @@ $needsCoverJs   = ($isbnForJs !== '' && $gbApiKey !== '' && !CoverService::hasLo
                             <div class="item-meta-row">
                                 <dt>BID SBN</dt>
                                 <dd>
-                                    <a href="http://id.sbn.it/bid/<?= h(str_replace(['IT\\ICCU\\', '\\'], '', $marcExtra['bid_sbn'])) ?>" target="_blank">
+                                    <a href="https://id.sbn.it/bid/<?= h(str_replace(['IT\\ICCU\\', '\\'], '', $marcExtra['bid_sbn'])) ?>" target="_blank">
                                         <?= h($marcExtra['bid_sbn']) ?> → OPAC
                                     </a>
                                 </dd>
