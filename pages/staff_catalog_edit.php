@@ -96,11 +96,16 @@ function isBarcodeUnique(PDO $pdo, string $barcode, ?int $excludeCopyId = null):
 // -----------------------------------------------------------------------------
 // Helper: genera barcode deterministico
 // -----------------------------------------------------------------------------
-function generateSafeBarcode(PDO $pdo, int $copyid): string
+function generateSafeBarcode(PDO $pdo, int $bibid, int $copyid): string
 {
-    $barcode = str_pad((string)$copyid, 7, '0', STR_PAD_LEFT);
+    // Formato uniforme: bibid su 5 cifre + copyid su 2 cifre = 7 caratteri
+    $barcode = str_pad((string)$bibid, 5, '0', STR_PAD_LEFT)
+             . str_pad((string)$copyid, 2, '0', STR_PAD_LEFT);
     if (!isBarcodeUnique($pdo, $barcode, $copyid)) {
-        $barcode = 'C' . str_pad((string)$copyid, 5, '0', STR_PAD_LEFT) . substr(uniqid(), -2);
+        // Fallback in caso di collisione imprevista (non dovrebbe accadere)
+        $barcode = str_pad((string)$bibid, 5, '0', STR_PAD_LEFT)
+                 . str_pad((string)$copyid, 2, '0', STR_PAD_LEFT)
+                 . substr((string)time(), -1);
     }
     return $barcode;
 }
@@ -178,7 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 if (!$useManual) {
-                    $finalBarcode = generateSafeBarcode($pdo, $newCopyId);
+                    $finalBarcode = generateSafeBarcode($pdo, $newBibid, $newCopyId);
                     $upd = $pdo->prepare('UPDATE biblio_copy SET barcode_nmbr = :barcode WHERE copyid = :copyid AND bibid = :bibid LIMIT 1');
                     $upd->execute([
                         ':barcode' => $finalBarcode,
