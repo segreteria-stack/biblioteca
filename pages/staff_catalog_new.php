@@ -225,8 +225,9 @@ $method    = (string)($_POST['method'] ?? '');
 $manualData   = ['title'=>'','title_remainder'=>'','author'=>'','responsibility'=>'',
                  'material_cd'=>'','collection_cd'=>'','call_nmbr1'=>'','call_nmbr2'=>'',
                  'call_nmbr3'=>'','topic1'=>'','topic2'=>'','topic3'=>'','topic4'=>'',
-                 'topic5'=>'','isbn'=>'','publisher'=>'','pub_year'=>'','pages'=>'',
-                 'summary'=>'','notes'=>''];
+                 'topic5'=>'','isbn'=>'','publisher'=>'','pub_year'=>'','pub_place'=>'',
+                 'pages'=>'','summary'=>'','notes'=>'',
+                 'bid_sbn'=>'','dewey'=>'','lingua'=>'','paese'=>'','serie'=>''];
 $manualErrors  = [];
 $manualSuccess = null;
 $manualBibid   = null;
@@ -288,17 +289,23 @@ if ($method === 'manual') {
             $manualBarcode = $barcode;
 
             foreach ([
-                [20,'a',$manualData['isbn']],
-                [260,'b',$manualData['publisher']],
-                [260,'c',$manualData['pub_year']],
-                [300,'a',$manualData['pages']],
-                [520,'a',$manualData['summary']],
-                [500,'a',$manualData['notes']],
+                [20,  'a', $manualData['isbn']],
+                [260, 'a', $manualData['pub_place']],
+                [260, 'b', $manualData['publisher']],
+                [260, 'c', $manualData['pub_year']],
+                [300, 'a', $manualData['pages']],
+                [490, 'a', $manualData['serie']],
+                [520, 'a', $manualData['summary']],
+                [500, 'a', $manualData['notes']],
+                [82,  'a', $manualData['dewey']],
+                [41,  'a', $manualData['lingua']],
+                [44,  'a', $manualData['paese']],
+                [901, 'a', $manualData['bid_sbn']],
             ] as [$tag,$sub,$val]) {
                 ncn_add_field($pdo, $manualBibid, $tag, $sub, $val);
             }
 
-            ncn_sync_index_ext($pdo, $manualBibid, $manualData['isbn'], $manualData['pub_year'], $manualData['publisher'], '');
+            ncn_sync_index_ext($pdo, $manualBibid, $manualData['isbn'], $manualData['pub_year'], $manualData['publisher'], $manualData['pub_place']);
             $pdo->commit();
             $manualSuccess = true;
             foreach (array_keys($manualData) as $k) $manualData[$k] = '';
@@ -783,11 +790,25 @@ $gbApiKey   = $GLOBALS['cfg']['google_books']['api_key'] ?? '';
                 </div>
                 <div class="search-row-inline">
                     <div style="flex:2 1 220px;"><label for="publisher">Editore</label><input type="text" id="publisher" name="publisher" value="<?= h($manualData['publisher']) ?>" placeholder="Es. Einaudi"></div>
-                    <div style="flex:1 1 110px;"><label for="pub_year">Anno</label><input type="text" id="pub_year" name="pub_year" value="<?= h($manualData['pub_year']) ?>" placeholder="Es. 1995"></div>
+                    <div style="flex:1 1 100px;"><label for="pub_year">Anno</label><input type="text" id="pub_year" name="pub_year" value="<?= h($manualData['pub_year']) ?>" placeholder="Es. 1995"></div>
+                    <div style="flex:1 1 120px;"><label for="pub_place">Luogo</label><input type="text" id="pub_place" name="pub_place" value="<?= h($manualData['pub_place']) ?>" placeholder="Es. Torino"></div>
                 </div>
                 <div class="search-row" style="margin-top:.75rem;">
                     <label for="pages">Descrizione fisica / pagine</label>
-                    <input type="text" id="pages" name="pages" value="<?= h($manualData['pages']) ?>" placeholder="Es. 320 pagine">
+                    <input type="text" id="pages" name="pages" value="<?= h($manualData['pages']) ?>" placeholder="Es. 320 p. ; 24 cm">
+                </div>
+            </fieldset>
+
+            <fieldset class="form-section">
+                <legend>Dati avanzati <small style="font-weight:400;color:#6b7280;">(compilati automaticamente da SBN)</small></legend>
+                <div class="search-row-inline">
+                    <div style="flex:1 1 180px;"><label for="serie">Collana / Serie</label><input type="text" id="serie" name="serie" value="<?= h($manualData['serie']) ?>" placeholder="Es. I Meridiani"></div>
+                    <div style="flex:1 1 130px;"><label for="dewey">Classe Dewey</label><input type="text" id="dewey" name="dewey" value="<?= h($manualData['dewey']) ?>" placeholder="Es. 945.09"></div>
+                </div>
+                <div class="search-row-inline" style="margin-top:.5rem;">
+                    <div style="flex:1 1 120px;"><label for="lingua">Lingua</label><input type="text" id="lingua" name="lingua" value="<?= h($manualData['lingua']) ?>" placeholder="Es. ita"></div>
+                    <div style="flex:1 1 120px;"><label for="paese">Paese</label><input type="text" id="paese" name="paese" value="<?= h($manualData['paese']) ?>" placeholder="Es. IT"></div>
+                    <div style="flex:2 1 200px;"><label for="bid_sbn">BID SBN</label><input type="text" id="bid_sbn" name="bid_sbn" value="<?= h($manualData['bid_sbn']) ?>" placeholder="Es. IT\ICCU\VIA\123456" style="font-family:monospace;font-size:.88rem;"></div>
                 </div>
             </fieldset>
 
@@ -1051,37 +1072,93 @@ function isbnStatus(msg, cls) {
     isbnSts.style.display = msg ? '' : 'none';
 }
 
+function applyFields(map) {
+    // map: { fieldId: value } — scrive solo se il campo è vuoto
+    Object.entries(map).forEach(([id, val]) => {
+        if (!val) return;
+        const el = document.getElementById(id);
+        if (el && !el.value) el.value = String(val);
+    });
+}
+
+function applySbnData(d) {
+    applyFields({
+        title:           d.titolo,
+        title_remainder: null,
+        author:          d.autore,
+        publisher:       d.editore,
+        pub_year:        d.anno,
+        pub_place:       d.luogo,
+        pages:           d.dimensioni,
+        summary:         d.abstract,
+        notes:           d.note,
+        serie:           d.collezione,
+        dewey:           d.dewey_code,
+        lingua:          Array.isArray(d.lingua) ? d.lingua[0] : d.lingua,
+        paese:           d.paese,
+        bid_sbn:         d.bid_sbn,
+    });
+    if (Array.isArray(d.soggetti) && d.soggetti.length) {
+        ['topic1','topic2','topic3','topic4','topic5'].forEach((id, i) => {
+            applyFields({[id]: d.soggetti[i]});
+        });
+    }
+}
+
 if (btnIsbn && isbnInp) {
     const orig = btnIsbn.textContent;
-    btnIsbn.addEventListener('click', function () {
+    btnIsbn.addEventListener('click', async function () {
         const isbn = isbnInp.value.trim();
         if (!isbn) { isbnStatus('Inserisci un ISBN prima di cercare.', 'err'); return; }
         btnIsbn.disabled = true;
         btnIsbn.textContent = 'Ricerca…';
-        isbnStatus('Consulto i cataloghi…', '');
+        isbnStatus('Consulto SBN…', '');
 
-        fetch('staff_isbn_lookup.php?isbn=' + encodeURIComponent(isbn), { headers: { Accept: 'application/json' } })
-            .then(r => r.json())
-            .then(function (data) {
-                if (!data || !data.ok) { isbnStatus(data?.error || 'Nessun dato trovato per questo ISBN.', 'err'); return; }
-                const byId = id => document.getElementById(id);
-                if (data.title       && byId('title')            && !byId('title').value)            byId('title').value            = data.title;
-                if (data.subtitle    && byId('title_remainder')  && !byId('title_remainder').value)  byId('title_remainder').value  = data.subtitle;
-                if (data.author      && byId('author')           && !byId('author').value)           byId('author').value           = data.author;
-                if (data.publisher   && byId('publisher')        && !byId('publisher').value)        byId('publisher').value        = data.publisher;
-                if (data.pub_year    && byId('pub_year')         && !byId('pub_year').value)         byId('pub_year').value         = data.pub_year;
-                if (data.pages       && byId('pages')            && !byId('pages').value)            byId('pages').value            = data.pages + ' pagine';
-                if (data.description && byId('summary')          && !byId('summary').value)          byId('summary').value          = data.description;
-                if (Array.isArray(data.subjects) && data.subjects.length) {
+        // 1. Prova prima SBN (se abilitato)
+        let sbnOk = false;
+        <?php if ($sbnEnabled): ?>
+        try {
+            const sbnRes  = await fetch(BASE + '/ajax_sbn_enrich.php?action=search_sbn&type=isbn&q=' + encodeURIComponent(isbn));
+            const sbnData = await sbnRes.json();
+            if (sbnData.ok && sbnData.total > 0) {
+                applySbnData(sbnData.results[0]);
+                isbnStatus('Dati SBN trovati e campi precompilati.', 'ok');
+                sbnOk = true;
+            }
+        } catch (_e) {}
+        <?php endif; ?>
+
+        if (sbnOk) { btnIsbn.disabled = false; btnIsbn.textContent = orig; return; }
+
+        // 2. Fallback: Google Books / staff_isbn_lookup.php
+        isbnStatus('SBN: nessun risultato. Consulto Google Books…', '');
+        try {
+            const gbRes  = await fetch('staff_isbn_lookup.php?isbn=' + encodeURIComponent(isbn), { headers: { Accept: 'application/json' } });
+            const gbData = await gbRes.json();
+            if (!gbData || !gbData.ok) {
+                isbnStatus(gbData?.error || 'Nessun dato trovato per questo ISBN.', 'err');
+            } else {
+                applyFields({
+                    title:           gbData.title,
+                    title_remainder: gbData.subtitle,
+                    author:          gbData.author,
+                    publisher:       gbData.publisher,
+                    pub_year:        gbData.pub_year,
+                    pages:           gbData.pages ? gbData.pages + ' pagine' : null,
+                    summary:         gbData.description,
+                });
+                if (Array.isArray(gbData.subjects) && gbData.subjects.length) {
                     ['topic1','topic2','topic3','topic4','topic5'].forEach((id, i) => {
-                        const el = byId(id);
-                        if (el && !el.value && data.subjects[i]) el.value = data.subjects[i];
+                        applyFields({[id]: gbData.subjects[i]});
                     });
                 }
-                isbnStatus('Dati trovati e campi precompilati.', 'ok');
-            })
-            .catch(() => isbnStatus('Errore nella chiamata ai cataloghi esterni.', 'err'))
-            .finally(() => { btnIsbn.disabled = false; btnIsbn.textContent = orig; });
+                isbnStatus('Dati Google Books trovati e campi precompilati.', 'ok');
+            }
+        } catch (_e) {
+            isbnStatus('Errore nella chiamata ai cataloghi esterni.', 'err');
+        }
+        btnIsbn.disabled = false;
+        btnIsbn.textContent = orig;
     });
 }
 
@@ -1200,15 +1277,20 @@ function sbnRenderForm(r) {
         {label:'Editore',key:'editore',type:'text'},
         {label:'Luogo',key:'luogo',type:'text'},
         {label:'Anno',key:'anno',type:'text'},
-        {label:'ISBN',key:'isbn',type:'text',readonly:true},
+        {label:'ISBN',key:'isbn',type:'text'},
         {section:'Classificazione'},
         {label:'Dewey',key:'dewey_code',type:'text'},
         {label:'Lingua',key:'lingua',type:'text'},
         {label:'Paese',key:'paese',type:'text'},
         {section:'Contenuto'},
-        {label:'Collezione',key:'collezione',type:'text'},
-        {label:'Note',key:'note',type:'textarea'},
+        {label:'Collana / Serie',key:'collezione',type:'text'},
+        {label:'Titolo uniforme',key:'titolo_uniforme',type:'text'},
+        {label:'Note generali',key:'note',type:'textarea'},
         {label:'Abstract',key:'abstract',type:'textarea'},
+        {label:'Indice / Sommario',key:'indice',type:'textarea'},
+        {label:'Riferimenti bibliogr.',key:'bibliografia',type:'text'},
+        {label:'Descrizione fisica',key:'dimensioni',type:'text'},
+        {label:'Illustrazioni',key:'illustrazioni',type:'text'},
         {label:'Soggetti',key:'soggetti',type:'textarea',
          value:Array.isArray(r.soggetti)?r.soggetti.join('; '):(r.soggetti||''),
          placeholder:'Separati da ; es. Resistenza; Friuli'},
