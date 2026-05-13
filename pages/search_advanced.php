@@ -603,23 +603,26 @@ if ($whereSql !== '') {
                     </div>
                 </div>
 
-                <div class="search-row">
-                    <label for="sort">Ordina per</label>
-                    <select id="sort" name="sort">
-                        <option value="title_asc"<?=  $sortRaw === 'title_asc'  ? ' selected' : '' ?>>Titolo (A → Z)</option>
-                        <option value="title_desc"<?= $sortRaw === 'title_desc' ? ' selected' : '' ?>>Titolo (Z → A)</option>
-                        <option value="author_asc"<?= $sortRaw === 'author_asc' ? ' selected' : '' ?>>Autore (A → Z)</option>
-                        <option value="author_desc"<?= $sortRaw === 'author_desc' ? ' selected' : '' ?>>Autore (Z → A)</option>
-                    </select>
-                </div>
+                <div class="filter-divider"></div>
 
-                <div class="search-row">
-                    <label for="per_page">Risultati per pagina</label>
-                    <select id="per_page" name="per_page">
-                        <option value="10"<?= $perPage === 10 ? ' selected' : '' ?>>10</option>
-                        <option value="20"<?= $perPage === 20 ? ' selected' : '' ?>>20</option>
-                        <option value="50"<?= $perPage === 50 ? ' selected' : '' ?>>50</option>
-                    </select>
+                <div class="adv-display-controls">
+                    <div class="adv-display-row">
+                        <label for="sort">Ordina per</label>
+                        <select id="sort" name="sort">
+                            <option value="title_asc"<?=  $sortRaw === 'title_asc'  ? ' selected' : '' ?>>Titolo (A → Z)</option>
+                            <option value="title_desc"<?= $sortRaw === 'title_desc' ? ' selected' : '' ?>>Titolo (Z → A)</option>
+                            <option value="author_asc"<?= $sortRaw === 'author_asc' ? ' selected' : '' ?>>Autore (A → Z)</option>
+                            <option value="author_desc"<?= $sortRaw === 'author_desc' ? ' selected' : '' ?>>Autore (Z → A)</option>
+                        </select>
+                    </div>
+                    <div class="adv-display-row">
+                        <label for="per_page">Per pagina</label>
+                        <select id="per_page" name="per_page">
+                            <option value="10"<?= $perPage === 10 ? ' selected' : '' ?>>10</option>
+                            <option value="20"<?= $perPage === 20 ? ' selected' : '' ?>>20</option>
+                            <option value="50"<?= $perPage === 50 ? ' selected' : '' ?>>50</option>
+                        </select>
+                    </div>
                 </div>
             </aside>
         </div>

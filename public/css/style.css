@@ -1019,6 +1019,36 @@ input[type="submit"] {
   margin: 1.25rem 0;
 }
 
+/* Controlli di visualizzazione (ordina / per pagina) — sezione compatta sotto il divisore */
+.adv-display-controls {
+  display: flex;
+  flex-direction: column;
+  gap: .55rem;
+}
+.adv-display-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+}
+.adv-display-row label {
+  font-size: .8rem;
+  font-weight: 600;
+  color: #6b7280;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.adv-display-row select {
+  font-size: .8rem;
+  padding: .25rem .4rem;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #fff;
+  color: #374151;
+  flex: 1;
+  min-width: 0;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .search-form-advanced {
