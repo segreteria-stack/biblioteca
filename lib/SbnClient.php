@@ -349,9 +349,11 @@ final class SbnClient
         foreach ($raw as $item) {
             $item = trim((string)$item);
             if ($item === '') continue;
-            // Se contiene separatori comuni ("; " o " -- "), splitta in soggetti distinti
-            if (str_contains($item, '; ') || str_contains($item, ' -- ')) {
-                $parts = preg_split('/\s*;\s*|\s+--\s+/', $item);
+            // ";" separa soggetti distinti; " -- " è separatore di suddivisione
+            // all'interno dello stesso soggetto MARC (es. "Resistenza -- Friuli")
+            // e NON deve essere spezzato.
+            if (str_contains($item, ';')) {
+                $parts = preg_split('/\s*;\s*/', $item);
                 foreach ($parts as $p) {
                     $p = trim($p);
                     if ($p !== '') $result[] = $p;

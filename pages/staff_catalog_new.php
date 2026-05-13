@@ -257,9 +257,10 @@ if ($method === 'manual') {
         $manualData[$k] = trim((string)($_POST[$k] ?? ''));
     }
 
-    if ($manualData['title'] === '')        $manualErrors[] = 'Il <strong>Titolo</strong> è obbligatorio.';
-    if ($manualData['material_cd'] === '')  $manualErrors[] = 'Seleziona un <strong>Tipo di materiale</strong>.';
+    if ($manualData['title'] === '')         $manualErrors[] = 'Il <strong>Titolo</strong> è obbligatorio.';
+    if ($manualData['material_cd'] === '')   $manualErrors[] = 'Seleziona un <strong>Tipo di materiale</strong>.';
     if ($manualData['collection_cd'] === '') $manualErrors[] = 'Seleziona una <strong>Sezione / collocazione</strong>.';
+    if ($manualData['call_nmbr1'] === '')    $manualErrors[] = 'La <strong>Segnatura (collocazione fisica)</strong> è obbligatoria.';
 
     if ($manualErrors === []) {
         try {
@@ -771,7 +772,7 @@ $gbApiKey   = $GLOBALS['cfg']['google_books']['api_key'] ?? '';
                     </div>
                 </div>
                 <div class="search-row-inline" style="margin-top:.75rem;">
-                    <div style="flex:1 1 120px;"><label for="call_nmbr1">Segnatura 1</label><input type="text" id="call_nmbr1" name="call_nmbr1" value="<?= h($manualData['call_nmbr1']) ?>"></div>
+                    <div style="flex:1 1 120px;"><label for="call_nmbr1">Segnatura 1 <span class="req">*</span></label><input type="text" id="call_nmbr1" name="call_nmbr1" value="<?= h($manualData['call_nmbr1']) ?>" required></div>
                     <div style="flex:1 1 120px;"><label for="call_nmbr2">Segnatura 2</label><input type="text" id="call_nmbr2" name="call_nmbr2" value="<?= h($manualData['call_nmbr2']) ?>"></div>
                     <div style="flex:1 1 120px;"><label for="call_nmbr3">Segnatura 3</label><input type="text" id="call_nmbr3" name="call_nmbr3" value="<?= h($manualData['call_nmbr3']) ?>"></div>
                 </div>
@@ -1235,9 +1236,15 @@ window.sbnCloseModal = function () {
 
 window.sbnImport = async function () {
     if (!sbnCurrent) return;
+    const editedData = sbnCollect();
+    if (!editedData.call_nmbr1) {
+        const el = document.getElementById('sbn-field-call_nmbr1');
+        if (el) { el.focus(); el.style.outline = '2px solid #c00'; }
+        sbnContent.insertAdjacentHTML('afterbegin', '<div class="sbn-import-err" style="margin-bottom:.75rem;">La <strong>Segnatura (collocazione fisica)</strong> è obbligatoria.</div>');
+        return;
+    }
     sbnImportBtn.disabled = true;
     sbnImportBtn.textContent = 'Importo…';
-    const editedData = sbnCollect();
     editedData.bid_sbn = sbnCurrent.bid_sbn;
     try {
         const res  = await fetch(BASE + '/ajax_sbn_enrich.php?action=import_record_with_data', {
