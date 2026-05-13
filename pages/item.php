@@ -742,7 +742,7 @@ $needsCoverJs   = ($isbnForJs !== '' && $gbApiKey !== '' && !CoverService::hasLo
                             <div class="item-meta-row">
                                 <dt>BID SBN</dt>
                                 <dd>
-                                    <a href="https://id.sbn.it/bid/<?= h(str_replace(['IT\\ICCU\\', '\\'], '', $marcExtra['bid_sbn'])) ?>" target="_blank">
+                                    <a href="http://id.sbn.it/bid/<?= h(str_replace(['IT\\ICCU\\', '\\'], '', $marcExtra['bid_sbn'])) ?>" target="_blank">
                                         <?= h($marcExtra['bid_sbn']) ?> → OPAC
                                     </a>
                                 </dd>
