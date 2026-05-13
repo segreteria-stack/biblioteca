@@ -47,7 +47,7 @@ if ($expected === '' || $given === '' || !hash_equals($expected, $given)) {
 $task  = isset($_GET['task']) ? (string)$_GET['task'] : 'send_queue';
 $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 20;
 
-$task = in_array($task, ['send_queue', 'retry_failed'], true) ? $task : 'send_queue';
+$task = in_array($task, ['send_queue', 'retry_failed', 'overdue_reminders'], true) ? $task : 'send_queue';
 $limit = max(1, min(200, $limit));
 
 // -----------------------------------------------------------------------------
@@ -81,6 +81,79 @@ if ($task === 'retry_failed') {
     } catch (Throwable $e) {
         http_response_code(500);
         echo "ERROR\n";
+        exit;
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Task: overdue_reminders — accoda solleciti per prestiti scaduti o in scadenza oggi
+// Configurare su Shellrent: giornaliero, mattina.
+// Esempio URL: ...?key=TOKEN&task=overdue_reminders
+// -----------------------------------------------------------------------------
+if ($task === 'overdue_reminders') {
+    try {
+        $opacLink = '';
+        if (!empty($cfg['app']['public_host'])) {
+            $opacLink = rtrim((string)$cfg['app']['public_host'], '/') .
+                rtrim((string)($cfg['app']['base_url'] ?? ''), '/') .
+                '/index.php?page=patron_area';
+        }
+
+        // Prestiti scaduti o con scadenza oggi, raggruppati per utente
+        $st = $db->query("
+            SELECT m.mbrid, m.email, m.first_name, m.last_name,
+                   bi.title, bi.author,
+                   c.due_back_dt
+            FROM biblio_copy c
+            JOIN member m ON m.mbrid = c.mbrid
+            JOIN biblio bi ON bi.bibid = c.bibid
+            WHERE c.status_cd IN ('out', 'ln')
+              AND c.due_back_dt IS NOT NULL
+              AND c.due_back_dt <= CURDATE()
+              AND m.email IS NOT NULL AND m.email <> ''
+            ORDER BY m.mbrid ASC, c.due_back_dt ASC
+        ");
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+
+        // Raggruppa per mbrid
+        $byMember = [];
+        foreach ($rows as $r) {
+            $mid = (int)$r['mbrid'];
+            $byMember[$mid]['email']      = (string)$r['email'];
+            $byMember[$mid]['first_name'] = (string)($r['first_name'] ?? '');
+            $byMember[$mid]['last_name']  = (string)($r['last_name'] ?? '');
+            $byMember[$mid]['loans'][]    = [
+                'title'        => (string)($r['title'] ?? ''),
+                'due_date'     => $r['due_back_dt'] !== null
+                                    ? date('d/m/Y', strtotime((string)$r['due_back_dt']))
+                                    : '',
+                'days_overdue' => (int)max(0, (int)floor((time() - strtotime((string)$r['due_back_dt'])) / 86400)),
+            ];
+        }
+
+        $enqueued = 0;
+        foreach ($byMember as $mid => $data) {
+            $to = trim($data['email']);
+            if ($to === '') continue;
+            $name = trim($data['first_name'] . ' ' . $data['last_name']);
+            $queue->enqueue(
+                $to,
+                'Sollecito restituzione — Biblioteca della Resistenza',
+                'patron/overdue_reminder',
+                [
+                    'name'     => $name,
+                    'loans'    => $data['loans'],
+                    'opacLink' => $opacLink,
+                ],
+                priority: 3
+            );
+            $enqueued++;
+        }
+        echo "Overdue reminders enqueued={$enqueued}\n";
+        exit;
+    } catch (Throwable $e) {
+        http_response_code(500);
+        echo "ERROR: " . $e->getMessage() . "\n";
         exit;
     }
 }

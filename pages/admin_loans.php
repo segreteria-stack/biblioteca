@@ -44,6 +44,23 @@ if (!($db instanceof PDO)) {
 
 $baseUrl = base_url();
 
+// Email (opzionale — non blocca mai l'operazione se fallisce)
+$_emailQueueReady = false;
+$_emailQueue      = null;
+try {
+    $emailLibPath = __DIR__ . '/../lib/';
+    require_once $emailLibPath . 'EmailQueue.php';
+    require_once $emailLibPath . 'EmailService.php';
+    $_emailQueue      = new EmailQueue($db);
+    $_emailQueueReady = true;
+} catch (Throwable $_e) {}
+
+$_buildOpacLink = static function (array $cfg): string {
+    $host = trim((string)($cfg['app']['public_host'] ?? ''));
+    if ($host === '') return '';
+    return rtrim($host, '/') . rtrim((string)($cfg['app']['base_url'] ?? ''), '/') . '/index.php?page=patron_area';
+};
+
 // Tabelle (default)
 $T_MEMBER      = 'member';
 $T_BIBLIO      = 'biblio';
@@ -323,6 +340,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if ($db->inTransaction()) $db->commit();
 
+                // Email conferma prestito all'utente
+                if ($_emailQueueReady) {
+                    try {
+                        $memberEmail = trim((string)($member['email'] ?? ''));
+                        if ($memberEmail !== '') {
+                            $stBook = $db->prepare("SELECT title, author FROM {$T_BIBLIO} WHERE bibid=? LIMIT 1");
+                            $stBook->execute([$bibid]);
+                            $book = $stBook->fetch(PDO::FETCH_ASSOC) ?: [];
+                            $memberFullName = trim(((string)($member['first_name'] ?? '')) . ' ' . ((string)($member['last_name'] ?? '')));
+                            $_emailQueue->enqueue(
+                                $memberEmail,
+                                'Prestito registrato — Biblioteca della Resistenza',
+                                'patron/loan_confirm',
+                                [
+                                    'name'        => $memberFullName,
+                                    'title'       => (string)($book['title'] ?? ''),
+                                    'author'      => (string)($book['author'] ?? ''),
+                                    'copyBarcode' => $copyBarcode,
+                                    'dueDate'     => date('d/m/Y', (int)strtotime($due)),
+                                    'opacLink'    => $_buildOpacLink($cfg),
+                                ]
+                            );
+                        }
+                    } catch (Throwable $_e) {}
+                }
+
                 $_SESSION['_al_member_barcode'] = $memberBarcode;
                 $_SESSION['_al_copy_barcode']   = $copyBarcode;
 
@@ -363,6 +406,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $insertHist($db, $bibid, $copyid, $STATUS_AVAILABLE, $curMbrid > 0 ? $curMbrid : null, null, $curRenew, $nowDt);
 
                 if ($db->inTransaction()) $db->commit();
+
+                // Email notifica prenotazione disponibile (primo utente in lista d'attesa)
+                if ($_emailQueueReady) {
+                    try {
+                        $stHold = $db->prepare(
+                            "SELECT h.holdid, h.mbrid, m.email, m.first_name, m.last_name
+                             FROM {$T_HOLD} h
+                             JOIN {$T_MEMBER} m ON m.mbrid = h.mbrid
+                             WHERE h.bibid = ?
+                             ORDER BY h.hold_begin_dt ASC
+                             LIMIT 1"
+                        );
+                        $stHold->execute([$bibid]);
+                        $hold = $stHold->fetch(PDO::FETCH_ASSOC);
+                        if ($hold) {
+                            $holdEmail = trim((string)($hold['email'] ?? ''));
+                            if ($holdEmail !== '') {
+                                $stBook = $db->prepare("SELECT title, author FROM {$T_BIBLIO} WHERE bibid=? LIMIT 1");
+                                $stBook->execute([$bibid]);
+                                $book = $stBook->fetch(PDO::FETCH_ASSOC) ?: [];
+                                $holdName = trim(((string)($hold['first_name'] ?? '')) . ' ' . ((string)($hold['last_name'] ?? '')));
+                                $_emailQueue->enqueue(
+                                    $holdEmail,
+                                    'Volume disponibile per il ritiro — Biblioteca della Resistenza',
+                                    'patron/hold_available',
+                                    [
+                                        'name'     => $holdName,
+                                        'title'    => (string)($book['title'] ?? ''),
+                                        'author'   => (string)($book['author'] ?? ''),
+                                        'opacLink' => $_buildOpacLink($cfg),
+                                    ]
+                                );
+                            }
+                        }
+                    } catch (Throwable $_e) {}
+                }
 
                 $ok = 'Restituzione registrata: copia ' . $copyBarcode . '.';
                 $go('index.php?page=admin_loans&tab=open');

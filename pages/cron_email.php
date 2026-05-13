@@ -60,7 +60,7 @@ $args  = parseArgs($argv);
 $task  = isset($args['task']) ? (string)$args['task'] : 'send_queue';
 $limit = isset($args['limit']) ? (int)$args['limit'] : 20;
 
-$task = in_array($task, ['send_queue', 'retry_failed'], true) ? $task : 'send_queue';
+$task = in_array($task, ['send_queue', 'retry_failed', 'overdue_reminders'], true) ? $task : 'send_queue';
 $limit = max(1, min(200, $limit));
 
 // -----------------------------------------------------------------------------
@@ -90,6 +90,75 @@ if ($task === 'retry_failed') {
         ");
         $st->execute();
         echo "Retry reset. rows=" . (int)$st->rowCount() . PHP_EOL;
+        exit(0);
+    } catch (Throwable $e) {
+        fwrite(STDERR, "ERROR: " . $e->getMessage() . PHP_EOL);
+        exit(1);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Task: overdue_reminders
+// Uso: php cron_email.php --task=overdue_reminders
+// -----------------------------------------------------------------------------
+if ($task === 'overdue_reminders') {
+    try {
+        $opacLink = '';
+        if (!empty($cfg['app']['public_host'])) {
+            $opacLink = rtrim((string)$cfg['app']['public_host'], '/') .
+                rtrim((string)($cfg['app']['base_url'] ?? ''), '/') .
+                '/index.php?page=patron_area';
+        }
+
+        $st = $db->query("
+            SELECT m.mbrid, m.email, m.first_name, m.last_name,
+                   bi.title, bi.author,
+                   c.due_back_dt
+            FROM biblio_copy c
+            JOIN member m ON m.mbrid = c.mbrid
+            JOIN biblio bi ON bi.bibid = c.bibid
+            WHERE c.status_cd IN ('out', 'ln')
+              AND c.due_back_dt IS NOT NULL
+              AND c.due_back_dt <= CURDATE()
+              AND m.email IS NOT NULL AND m.email <> ''
+            ORDER BY m.mbrid ASC, c.due_back_dt ASC
+        ");
+        $rows = $st->fetchAll(\PDO::FETCH_ASSOC);
+
+        $byMember = [];
+        foreach ($rows as $r) {
+            $mid = (int)$r['mbrid'];
+            $byMember[$mid]['email']      = (string)$r['email'];
+            $byMember[$mid]['first_name'] = (string)($r['first_name'] ?? '');
+            $byMember[$mid]['last_name']  = (string)($r['last_name'] ?? '');
+            $byMember[$mid]['loans'][]    = [
+                'title'        => (string)($r['title'] ?? ''),
+                'due_date'     => $r['due_back_dt'] !== null
+                                    ? date('d/m/Y', strtotime((string)$r['due_back_dt']))
+                                    : '',
+                'days_overdue' => (int)max(0, (int)floor((time() - strtotime((string)$r['due_back_dt'])) / 86400)),
+            ];
+        }
+
+        $enqueued = 0;
+        foreach ($byMember as $mid => $data) {
+            $to = trim($data['email']);
+            if ($to === '') continue;
+            $name = trim($data['first_name'] . ' ' . $data['last_name']);
+            $queue->enqueue(
+                $to,
+                'Sollecito restituzione — Biblioteca della Resistenza',
+                'patron/overdue_reminder',
+                [
+                    'name'     => $name,
+                    'loans'    => $data['loans'],
+                    'opacLink' => $opacLink,
+                ],
+                priority: 3
+            );
+            $enqueued++;
+        }
+        echo "Overdue reminders enqueued={$enqueued}" . PHP_EOL;
         exit(0);
     } catch (Throwable $e) {
         fwrite(STDERR, "ERROR: " . $e->getMessage() . PHP_EOL);
