@@ -14,6 +14,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once __DIR__ . '/../lib/PatronAuth.php';
+require_once __DIR__ . '/../lib/marc_helpers.php';
 
 $patron  = PatronAuth::user();
 $hasCsrf = function_exists('csrf_check') && function_exists('csrf_token');
@@ -218,6 +219,7 @@ $pages           = 1;
 $errors          = [];
 $shelf           = [];
 $availabilityMap = [];
+$subjectsMap     = [];
 $alreadyHeldMap  = [];
 $gbApiKey        = $GLOBALS['cfg']['google_books']['api_key'] ?? '';
 
@@ -265,6 +267,8 @@ if ($hasSearch) {
             if ($results !== []) {
                 $bibids          = array_map(fn($r) => (int)($r['bibid'] ?? 0), $results);
                 $availabilityMap = search_fetch_availability_map($pdo, $bibids);
+                $recordsById     = array_column($results, null, 'bibid');
+                $subjectsMap     = search_fetch_subjects_map($pdo, $bibids, $recordsById);
                 if ($patron && isset($patron['mbrid'])) {
                     $alreadyHeldMap = search_fetch_already_held_map($pdo, (int)$patron['mbrid'], $bibids);
                 }
@@ -433,43 +437,7 @@ $queryBase = [
                     $coverUrl    = CoverService::getCoverUrl($isbnRaw, $titleVal, $authorVal);
                     $placeholder = CoverService::placeholderUrl($titleVal);
 
-                    $tags = [];
-                    foreach (['topic1','topic2','topic3','topic4','topic5'] as $tk) {
-                        $tv = trim((string)($row[$tk] ?? ''));
-                        if ($tv !== '') $tags[] = $tv;
-                    }
-                    try {
-                        $stmtSub = $pdo->prepare('SELECT fieldid, tag, subfield_cd, field_data FROM biblio_field WHERE bibid = :bibid AND tag BETWEEN 600 AND 699 ORDER BY tag, fieldid');
-                        $stmtSub->execute([':bibid' => $bibid]);
-                        $rowsSub         = $stmtSub->fetchAll(PDO::FETCH_ASSOC);
-                        $currentFieldid  = null;
-                        $currentParts    = [];
-                        $marcSubjects    = [];
-                        foreach ($rowsSub as $subRow) {
-                            $fieldid = (int)($subRow['fieldid'] ?? 0);
-                            $code    = (string)($subRow['subfield_cd'] ?? '');
-                            $data    = trim((string)($subRow['field_data'] ?? ''));
-                            if (in_array($code, ['a','x','y','z'], true)) {
-                                if ($currentFieldid !== null && $fieldid !== $currentFieldid && $currentParts !== []) {
-                                    $marcSubjects[] = implode(' -- ', $currentParts);
-                                    $currentParts   = [];
-                                }
-                                $currentFieldid = $fieldid;
-                                if ($data !== '') $currentParts[] = $data;
-                                continue;
-                            }
-                            if ($currentParts !== []) {
-                                $marcSubjects[] = implode(' -- ', $currentParts);
-                                $currentParts   = [];
-                                $currentFieldid = null;
-                            }
-                        }
-                        if ($currentParts !== []) $marcSubjects[] = implode(' -- ', $currentParts);
-                        foreach ($marcSubjects as $subj) {
-                            $subj = trim($subj);
-                            if ($subj !== '' && !in_array($subj, $tags, true)) $tags[] = $subj;
-                        }
-                    } catch (\PDOException $e) {}
+                    $tags = $subjectsMap[$bibid] ?? [];
 
                     $detailHref     = 'index.php?page=item&bibid=' . $bibid;
                     $holdPostAction = 'index.php?page=item&bibid=' . $bibid;

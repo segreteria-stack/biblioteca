@@ -14,6 +14,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once __DIR__ . '/../lib/PatronAuth.php';
+require_once __DIR__ . '/../lib/marc_helpers.php';
 
 $patron  = PatronAuth::user();
 $hasCsrf = function_exists('csrf_check') && function_exists('csrf_token');
@@ -347,6 +348,7 @@ $results         = [];
 $total           = 0;
 $pages           = 1;
 $availabilityMap = [];
+$subjectsMap     = [];
 $alreadyHeldMap  = [];
 $gbApiKey        = $GLOBALS['cfg']['google_books']['api_key'] ?? '';
 
@@ -391,6 +393,8 @@ if ($whereSql !== '') {
         if ($results !== []) {
             $bibids          = array_map(fn($r) => (int)($r['bibid'] ?? 0), $results);
             $availabilityMap = search_fetch_availability_map($pdo, $bibids);
+            $recordsById     = array_column($results, null, 'bibid');
+            $subjectsMap     = search_fetch_subjects_map($pdo, $bibids, $recordsById);
             if ($patron && isset($patron['mbrid'])) {
                 $alreadyHeldMap = search_fetch_already_held_map($pdo, (int)$patron['mbrid'], $bibids);
             }
@@ -589,11 +593,7 @@ if ($whereSql !== '') {
                     $coverUrl    = CoverService::getCoverUrl($isbnRaw, $titleVal, $authorVal);
                     $placeholder = CoverService::placeholderUrl($titleVal);
 
-                    $tags = [];
-                    foreach (['topic1','topic2','topic3','topic4','topic5'] as $tk) {
-                        $tv = trim((string)($row[$tk] ?? ''));
-                        if ($tv !== '') $tags[] = $tv;
-                    }
+                    $tags = $subjectsMap[$bibid] ?? [];
 
                     $detailHref     = 'index.php?page=item&bibid=' . $bibid;
                     $holdPostAction = 'index.php?page=item&bibid=' . $bibid;

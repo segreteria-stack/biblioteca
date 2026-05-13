@@ -387,3 +387,76 @@ function marc_get_subjects(PDO $pdo, int $bibid, array $record = []): array
 
     return $subjects;
 }
+
+/**
+ * Carica i soggetti per un set di bibid in una sola query SQL.
+ * Usata nelle pagine di ricerca per evitare N+1 query.
+ * Applica la stessa normalizzazione di marc_get_subjects().
+ *
+ * @param PDO   $pdo
+ * @param int[] $bibids
+ * @param array<int,array> $records  Righe biblio indicizzate per bibid (devono contenere topic1..5)
+ * @return array<int, string[]>
+ */
+function search_fetch_subjects_map(PDO $pdo, array $bibids, array $records = []): array
+{
+    $out    = [];
+    $bibids = array_values(array_unique(array_filter(array_map('intval', $bibids), static fn($v) => $v > 0)));
+    if ($bibids === []) return $out;
+
+    $normalize = static function (string $val, array &$seen): ?string {
+        $val = trim($val);
+        if ($val === '') return null;
+        if (preg_match('/^[\d\s\-–—.,:;]+$/', $val)) return null;
+        if ($val === mb_strtoupper($val)) {
+            $val = mb_convert_case($val, MB_CASE_TITLE, 'UTF-8');
+        }
+        $key = mb_strtolower($val, 'UTF-8');
+        if (isset($seen[$key])) return null;
+        $seen[$key] = true;
+        return $val;
+    };
+
+    foreach ($bibids as $bid) {
+        $out[$bid] = [];
+        $seen      = [];
+        $rec       = $records[$bid] ?? [];
+        foreach (['topic1','topic2','topic3','topic4','topic5'] as $tk) {
+            $v = $normalize((string)($rec[$tk] ?? ''), $seen);
+            if ($v !== null) $out[$bid][] = $v;
+        }
+    }
+
+    try {
+        $ph = implode(',', array_fill(0, count($bibids), '?'));
+        $st = $pdo->prepare("
+            SELECT bibid, field_data
+            FROM biblio_field
+            WHERE bibid IN ($ph)
+              AND tag IN (650, 651)
+              AND subfield_cd = 'a'
+            ORDER BY bibid, tag, fieldid
+        ");
+        $st->execute($bibids);
+        $seen = [];
+        $lastBid = -1;
+        while ($row = $st->fetch(PDO::FETCH_ASSOC)) {
+            $bid = (int)$row['bibid'];
+            if ($bid !== $lastBid) {
+                $seen    = [];
+                $lastBid = $bid;
+                // Pre-carica i seen dai topic già inseriti
+                foreach ($out[$bid] ?? [] as $s) {
+                    $seen[mb_strtolower($s, 'UTF-8')] = true;
+                }
+            }
+            if (!isset($out[$bid])) continue;
+            $v = $normalize((string)($row['field_data'] ?? ''), $seen);
+            if ($v !== null) $out[$bid][] = $v;
+        }
+    } catch (PDOException $e) {
+        // non bloccante
+    }
+
+    return $out;
+}
