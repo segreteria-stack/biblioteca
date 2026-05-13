@@ -1224,14 +1224,35 @@ if (sbnBtn) {
     });
 }
 
-function sbnOpenModal(bid) {
-    sbnCurrent = sbnResultsData.find(r => r.bid_sbn === bid);
-    if (!sbnCurrent) return;
-    sbnImportBtn.disabled = false;
-    sbnImportBtn.textContent = '📥 Importa nel catalogo';
+async function sbnOpenModal(bid) {
+    // Apri subito il modal con un placeholder
+    sbnCurrent = { bid_sbn: bid };
+    sbnImportBtn.disabled = true;
+    sbnImportBtn.textContent = 'Caricamento…';
     sbnImportBtn.style.display = '';
-    sbnContent.innerHTML = sbnRenderForm(sbnCurrent);
+    sbnContent.innerHTML = '<p style="color:#666;padding:1rem 0">Recupero dati completi da SBN (UNIMARC)…</p>';
     sbnModal.classList.add('active');
+
+    try {
+        // Fetch full record con detail=full per avere UNIMARC (ISBN, pagine, Dewey, ecc.)
+        const res  = await fetch(BASE + '/ajax_sbn_enrich.php?action=preview_record&bid=' + encodeURIComponent(bid));
+        const data = await res.json();
+        if (!data.ok) {
+            sbnContent.innerHTML = `<div class="sbn-import-err">Errore nel recupero del record: ${escHtml(data.error || 'Errore sconosciuto')}</div>`;
+            sbnImportBtn.textContent = '📥 Importa nel catalogo';
+            sbnImportBtn.disabled = true;
+            return;
+        }
+        sbnCurrent = data;
+        sbnCurrent.bid_sbn = data.bid_sbn || bid;
+        sbnContent.innerHTML = sbnRenderForm(sbnCurrent);
+        sbnImportBtn.disabled = false;
+        sbnImportBtn.textContent = '📥 Importa nel catalogo';
+    } catch (e) {
+        sbnContent.innerHTML = `<div class="sbn-import-err">Errore di rete: ${escHtml(e.message)}</div>`;
+        sbnImportBtn.textContent = '📥 Importa nel catalogo';
+        sbnImportBtn.disabled = true;
+    }
 }
 
 window.sbnCloseModal = function () {

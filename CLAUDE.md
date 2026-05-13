@@ -38,53 +38,37 @@ sql/                schema DB di riferimento (anpiudine-or1d94_2.sql)
   - Stato CSS: `available`, `unavailable`, `reserved`, `other`, `unknown`
 - Default risultati per pagina: **10** (hardcoded, ignora `PAGE_SIZE` in config.php)
 - CSS: `public/css/style.css` (file principale, include badge disponibilità); `public/css/item.css` (solo pagina item)
+- Soggetti: `marc_split_subject_string()` in `lib/marc_helpers.php` spacca su ` -- ` e `;`; usare ovunque
+
+## Funzionalità implementate (completate)
+
+- ✅ Email automatiche complete: registrazione, prestito, restituzione, sollecito scadenza, prenotazione disponibile, admin notifica nuova registrazione — `EmailService`, `EmailQueue`, `cron_email.php`, templates in `templates/email/`
+- ✅ Rinominare "patron" → "utente" nel frontend (solo testo visibile, non variabili)
+- ✅ Normalizzazione e split soggetti: `marc_split_subject_string()` in `marc_helpers.php`; pagina topics e home usano split
+- ✅ Nuovo account staff: attivazione via link email con token monouso 48h (`pages/staff_activate.php`)
+- ✅ Ricerca semplice estesa a note, abstract, serie, luogo pubblicazione (EXISTS su biblio_field)
+- ✅ Ridondanze scheda item: rimosso campo "Pagine" duplicato nell'header (era stesso di "Descrizione fisica" da MARC 300)
+- ✅ Stampa barcode massiva: `pages/staff_barcodes.php` (standalone, JsBarcode CDN, filtri, CSS print)
+- ✅ Multi-copia alla creazione: `staff_catalog_new.php` permette di creare N copie in un'unica operazione
+- ✅ Campi MARC aggiuntivi in staff_catalog_edit: pub_place, dewey, lingua, paese, serie, bid_sbn
+- ✅ Donazioni: form online con invio email a staff via `pages/donazioni.php`
+- ✅ Email prenotazione libro: `templates/email/patron/hold_confirm.php` inviata da `pages/item.php`
+- ✅ Collocazione fisica obbligatoria: validazione PHP + JS in `staff_catalog_new.php`
+- ✅ Bug SBN import (ISBN/pagine vuoti): fix `sbnOpenModal` → chiama `preview_record` (detail=full) invece dei dati di ricerca; fix `parseIsbn(mixed)` type hint; normalizzazione `lingua` array→stringa
 
 ---
 
-## Prossime sessioni — backlog prioritario
+## Backlog residuo
 
-### 1. Email automatiche (utenti e admin)
-- Trigger eventi: registrazione patron, prestito, restituzione, sollecito scadenza, prenotazione disponibile
-- Admin: notifica nuova registrazione, sollecito batch per scaduti
-- Infrastruttura: `email_queue` e `email_log` già presenti in DB → usarle
-- Verificare `lib/` per eventuali classi mailer già presenti
-- Configurazione SMTP in `config.php`
+### 1. Welcome email al patron che si autoregistra
+- `pages/user_register.php` notifica lo staff ma non invia email di benvenuto al patron
+- Template da creare: `templates/email/patron/welcome.php` (o riusare `patron/invite.php` senza activation link)
+- Dati da passare: nome, cognome, barcode tessera
 
-### 2. Rinominare "patron" → "utente" nel frontend
-- Tutte le pagine pubbliche: `pages/patron_*.php`, `templates/header.php`
-- Label visibili: "Accedi / Registrati", "Il mio account", "Connesso: …", "Esci"
-- **Non rinominare** variabili PHP interne, chiavi sessione, nomi file — solo testo visibile all'utente
-- Verificare anche messaggi di errore e form
-
-### 3. Normalizzazione visualizzazione soggetti
-- Decidere il formato: tag MARC usati (650, 600, 610, ecc.), separatore, ordinamento
-- Verificare come sono salvati in `biblio_field` (tag + subfield_cd)
-- Applicare coerentemente in: `pages/item.php`, risultati search, eventuale filtro per soggetto
-- Valutare se linkare i soggetti a una ricerca per soggetto
-
-### 4. Nuovo account staff: attivazione via link email
-- Flusso: admin crea account → email con token → staff clicca link → imposta password
-- Tabella `staff` (o equivalente): verificare struttura esistente
-- Token: colonna `activation_token` + `token_expires_at` da aggiungere se non presenti
-- Pagina pubblica: `pages/staff_activate.php` (nuova)
-- Sicurezza: token monouso, scadenza 48h, HTTPS only
-
-### 5. Ricerca full-text su tutti i campi SQL
-- Attualmente la ricerca copre solo alcuni campi (titolo, autore, ecc.)
-- Estendere a tutti i campi rilevanti di `biblio` e `biblio_field` (soggetti, abstract, note, ecc.)
-- Valutare FULLTEXT index MySQL vs LIKE su campi concatenati
-- Verificare impatto su performance con il volume dati attuale
-
-### 7. Eliminare ridondanze nella scheda item
-- Rivedere `pages/item.php`: identificare campi duplicati o visualizzati più volte
-- Verificare coerenza con i dati reali in `biblio` e `biblio_field` (stessi dati esposti tramite tag MARC diversi)
-- Obiettivo: scheda pulita, senza ripetizioni, leggibile dall'utente finale
-
-### 6. Miglioramento maschera importazione da SBN
-- Rivedere UX del form in `pages/staff_catalog_new.php` e `public/ajax_sbn_enrich.php`
-- Possibili aree di miglioramento: feedback visivo durante import, gestione errori, anteprima record prima del salvataggio, importazione multipla
-- Verificare casi edge: record SBN con dati mancanti, duplicati, MARCXML malformato
-- **Bug noto**: ricerca per ISBN/titolo/autore non importa alcuni campi — ISBN, numero pagine e altri dettagli tecnici risultano vuoti dopo l'import; indagare quale ramo del codice gestisce questi casi e perché i campi non vengono mappati dal MARCXML SBN
+### 2. Miglioramento UX maschera SBN (non-bug)
+- Importazione multipla di più record in sequenza senza ricaricare la pagina
+- Feedback visivo progress durante import batch
+- Gestione casi edge: record SBN con dati mancanti
 
 ---
 

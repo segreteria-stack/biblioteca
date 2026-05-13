@@ -244,7 +244,7 @@ final class SbnClient
         return null;
     }
 
-    public function parseIsbn(array $isbnField): string
+    public function parseIsbn(mixed $isbnField): string
     {
         $raw = is_array($isbnField) ? ($isbnField[0] ?? '') : (string)$isbnField;
         return preg_replace('/[^0-9X]/i', '', strtoupper($raw));
@@ -279,8 +279,9 @@ final class SbnClient
         // Paese da paese_mus o da 102 $a
         $paese = $doc['paese_mus'][0] ?? $this->extractUnimarcSubfield($fields, '102', 'a') ?? null;
 
-        // Lingua (già array in API)
-        $lingua = $doc['lingua'] ?? null;
+        // Lingua: l'API restituisce un array (es. ["ita"]); prendiamo il primo elemento
+        $linguaRaw = $doc['lingua'] ?? null;
+        $lingua = is_array($linguaRaw) ? ($linguaRaw[0] ?? null) : ($linguaRaw ?: null);
 
         return [
             'bid_sbn'         => $doc['id'] ?? null,
