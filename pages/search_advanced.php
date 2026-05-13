@@ -191,16 +191,93 @@ function buildSubjectCondition(string $value, string $op, array &$params): ?stri
         $parts = [];
         foreach ($tokens as $tok) {
             $pattern = '%' . $tok['value'] . '%';
-            $parts[] = "(topic1 LIKE ? OR topic2 LIKE ? OR topic3 LIKE ? OR topic4 LIKE ? OR topic5 LIKE ?)";
+            $parts[] = "(topic1 LIKE ? OR topic2 LIKE ? OR topic3 LIKE ? OR topic4 LIKE ? OR topic5 LIKE ?"
+                     . " OR EXISTS (SELECT 1 FROM biblio_field bfs WHERE bfs.bibid = biblio.bibid"
+                     . "  AND bfs.tag IN (650,651) AND bfs.subfield_cd = 'a' AND bfs.field_data LIKE ?))";
             for ($i = 0; $i < 5; $i++) $params[] = $pattern;
+            $params[] = $pattern;
         }
         return '(' . implode(' AND ', $parts) . ')';
     }
     $info = buildPattern($value, $op);
     $op_  = $info['use_like'] ? 'LIKE' : '=';
-    $sql  = "(topic1 $op_ ? OR topic2 $op_ ? OR topic3 $op_ ? OR topic4 $op_ ? OR topic5 $op_ ?)";
+    $sql  = "(topic1 $op_ ? OR topic2 $op_ ? OR topic3 $op_ ? OR topic4 $op_ ? OR topic5 $op_ ?"
+          . " OR EXISTS (SELECT 1 FROM biblio_field bfs WHERE bfs.bibid = biblio.bibid"
+          . "  AND bfs.tag IN (650,651) AND bfs.subfield_cd = 'a' AND bfs.field_data $op_ ?))";
     for ($i = 0; $i < 5; $i++) $params[] = $info['pattern'];
+    $params[] = $info['pattern'];
     return $sql;
+}
+
+function buildAbstractCondition(string $value, string $op, array &$params): ?string
+{
+    if ($value === '') return null;
+    if (strtolower($op) === 'contains') {
+        $tokens = search_tokenize($value);
+        if ($tokens === []) return null;
+        $parts = [];
+        foreach ($tokens as $tok) {
+            $pattern = '%' . $tok['value'] . '%';
+            $parts[] = "EXISTS (SELECT 1 FROM biblio_field bfa WHERE bfa.bibid = biblio.bibid"
+                     . " AND bfa.tag IN (520,500) AND bfa.subfield_cd = 'a' AND bfa.field_data LIKE ?)";
+            $params[] = $pattern;
+        }
+        return '(' . implode(' AND ', $parts) . ')';
+    }
+    $info = buildPattern($value, $op);
+    $op_  = $info['use_like'] ? 'LIKE' : '=';
+    $params[] = $info['pattern'];
+    return "EXISTS (SELECT 1 FROM biblio_field bfa WHERE bfa.bibid = biblio.bibid"
+         . " AND bfa.tag IN (520,500) AND bfa.subfield_cd = 'a' AND bfa.field_data $op_ ?)";
+}
+
+function buildSeriesCondition(string $value, string $op, array &$params): ?string
+{
+    if ($value === '') return null;
+    if (strtolower($op) === 'contains') {
+        $tokens = search_tokenize($value);
+        if ($tokens === []) return null;
+        $parts = [];
+        foreach ($tokens as $tok) {
+            $pattern = '%' . $tok['value'] . '%';
+            $parts[] = "EXISTS (SELECT 1 FROM biblio_field bfr WHERE bfr.bibid = biblio.bibid"
+                     . " AND bfr.tag IN (490,440,830) AND bfr.subfield_cd = 'a' AND bfr.field_data LIKE ?)";
+            $params[] = $pattern;
+        }
+        return '(' . implode(' AND ', $parts) . ')';
+    }
+    $info = buildPattern($value, $op);
+    $op_  = $info['use_like'] ? 'LIKE' : '=';
+    $params[] = $info['pattern'];
+    return "EXISTS (SELECT 1 FROM biblio_field bfr WHERE bfr.bibid = biblio.bibid"
+         . " AND bfr.tag IN (490,440,830) AND bfr.subfield_cd = 'a' AND bfr.field_data $op_ ?)";
+}
+
+function buildPlaceCondition(string $value, string $op, array &$params): ?string
+{
+    if ($value === '') return null;
+    $info = buildPattern($value, $op);
+    $params[] = $info['pattern'];
+    return $info['use_like'] ? 'idx.pub_place LIKE ?' : 'idx.pub_place = ?';
+}
+
+function buildRespCondition(string $value, string $op, array &$params): ?string
+{
+    if ($value === '') return null;
+    if (strtolower($op) === 'contains') {
+        $tokens = search_tokenize($value);
+        if ($tokens === []) return null;
+        $parts = [];
+        foreach ($tokens as $tok) {
+            $pattern  = '%' . $tok['value'] . '%';
+            $parts[]  = 'responsibility_stmt LIKE ?';
+            $params[] = $pattern;
+        }
+        return '(' . implode(' AND ', $parts) . ')';
+    }
+    $info = buildPattern($value, $op);
+    $params[] = $info['pattern'];
+    return $info['use_like'] ? 'responsibility_stmt LIKE ?' : 'responsibility_stmt = ?';
 }
 
 function buildPublisherCondition(string $value, string $op, array &$params): ?string
@@ -227,6 +304,10 @@ function buildFieldCondition(string $field, string $value, string $op, array &$p
         case 'subject':   return buildSubjectCondition($value, $op, $params);
         case 'publisher': return buildPublisherCondition($value, $op, $params);
         case 'isbn':      return buildIsbnCondition($value, $op, $params);
+        case 'abstract':  return buildAbstractCondition($value, $op, $params);
+        case 'series':    return buildSeriesCondition($value, $op, $params);
+        case 'place':     return buildPlaceCondition($value, $op, $params);
+        case 'resp':      return buildRespCondition($value, $op, $params);
         default:          return null;
     }
 }
@@ -435,6 +516,10 @@ if ($whereSql !== '') {
                                         <option value="subject"<?=   $rowField === 'subject'   ? ' selected' : '' ?>>Soggetto</option>
                                         <option value="publisher"<?= $rowField === 'publisher' ? ' selected' : '' ?>>Editore</option>
                                         <option value="isbn"<?=      $rowField === 'isbn'      ? ' selected' : '' ?>>ISBN / Codice</option>
+                                        <option value="abstract"<?=  $rowField === 'abstract'  ? ' selected' : '' ?>>Abstract / Note</option>
+                                        <option value="series"<?=    $rowField === 'series'    ? ' selected' : '' ?>>Collana / Serie</option>
+                                        <option value="place"<?=     $rowField === 'place'     ? ' selected' : '' ?>>Luogo di pubbl.</option>
+                                        <option value="resp"<?=      $rowField === 'resp'      ? ' selected' : '' ?>>Responsabilità</option>
                                     </select>
                                 </div>
                                 <div class="adv-cell adv-cell-op">
