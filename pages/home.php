@@ -120,14 +120,15 @@ try {
     ");
     $seenBibidPerLabel = [];
     while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
-        $label = marc_normalize_subject_val((string)($row['topic'] ?? ''));
-        if ($label === null) continue;
-        $key   = mb_strtolower($label, 'UTF-8');
-        $bibid = (int)$row['bibid'];
-        if (!isset($seenBibidPerLabel[$key])) {
-            $seenBibidPerLabel[$key] = ['label' => $label, 'cnt' => []];
+        $bibid  = (int)$row['bibid'];
+        $labels = marc_split_subject_string((string)($row['topic'] ?? ''));
+        foreach ($labels as $label) {
+            $key = mb_strtolower($label, 'UTF-8');
+            if (!isset($seenBibidPerLabel[$key])) {
+                $seenBibidPerLabel[$key] = ['label' => $label, 'cnt' => []];
+            }
+            $seenBibidPerLabel[$key]['cnt'][$bibid] = true;
         }
-        $seenBibidPerLabel[$key]['cnt'][$bibid] = true;
     }
     $freq = [];
     foreach ($seenBibidPerLabel as $key => $entry) {

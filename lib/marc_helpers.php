@@ -355,6 +355,26 @@ function marc_normalize_subject_val(string $val): ?string
     return $val;
 }
 
+/**
+ * Spacca una stringa soggetto composta (es. "Resistenza -- Italia; Partigiani")
+ * nei soggetti individuali, normalizza ciascuno e restituisce solo quelli validi.
+ * Separatori: " -- " (suddivisione MARC) e ";" (lista multipla).
+ *
+ * @return string[]
+ */
+function marc_split_subject_string(string $raw): array
+{
+    $parts  = preg_split('/\s+--\s+|\s*;\s*/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    $result = [];
+    foreach ($parts as $part) {
+        $normalized = marc_normalize_subject_val($part);
+        if ($normalized !== null) {
+            $result[] = $normalized;
+        }
+    }
+    return $result;
+}
+
 function marc_get_subjects(PDO $pdo, int $bibid, array $record = []): array
 {
     $subjects = [];

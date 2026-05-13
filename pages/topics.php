@@ -51,17 +51,18 @@ try {
         ORDER BY bibid
     ");
 
-    // Conta distinct bibid per label normalizzata
+    // Conta distinct bibid per label normalizzata (soggetti composti splittati)
     $seenBibidPerLabel = []; // [label_key => [bibid => true]]
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        $label = marc_normalize_subject_val((string)($row['topic'] ?? ''));
-        if ($label === null) continue;
-        $key   = mb_strtolower($label, 'UTF-8');
-        $bibid = (int)$row['bibid'];
-        if (!isset($seenBibidPerLabel[$key])) {
-            $seenBibidPerLabel[$key] = ['label' => $label, 'bibids' => []];
+        $bibid  = (int)$row['bibid'];
+        $labels = marc_split_subject_string((string)($row['topic'] ?? ''));
+        foreach ($labels as $label) {
+            $key = mb_strtolower($label, 'UTF-8');
+            if (!isset($seenBibidPerLabel[$key])) {
+                $seenBibidPerLabel[$key] = ['label' => $label, 'bibids' => []];
+            }
+            $seenBibidPerLabel[$key]['bibids'][$bibid] = true;
         }
-        $seenBibidPerLabel[$key]['bibids'][$bibid] = true;
     }
     foreach ($seenBibidPerLabel as $entry) {
         $frequencies[(string)$entry['label']] = count($entry['bibids']);
