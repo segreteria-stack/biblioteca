@@ -603,7 +603,7 @@ if ($whereSql !== '') {
                     </div>
                 </div>
 
-                <div class="search-row search-row-inline">
+                <div class="search-row">
                     <label for="sort">Ordina per</label>
                     <select id="sort" name="sort">
                         <option value="title_asc"<?=  $sortRaw === 'title_asc'  ? ' selected' : '' ?>>Titolo (A → Z)</option>
@@ -611,10 +611,10 @@ if ($whereSql !== '') {
                         <option value="author_asc"<?= $sortRaw === 'author_asc' ? ' selected' : '' ?>>Autore (A → Z)</option>
                         <option value="author_desc"<?= $sortRaw === 'author_desc' ? ' selected' : '' ?>>Autore (Z → A)</option>
                     </select>
+                </div>
 
-                    <div class="filter-divider"></div>
-
-                    <label for="per_page" class="per-page-label">Risultati per pagina</label>
+                <div class="search-row">
+                    <label for="per_page">Risultati per pagina</label>
                     <select id="per_page" name="per_page">
                         <option value="10"<?= $perPage === 10 ? ' selected' : '' ?>>10</option>
                         <option value="20"<?= $perPage === 20 ? ' selected' : '' ?>>20</option>
