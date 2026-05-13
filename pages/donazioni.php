@@ -5,47 +5,47 @@ declare(strict_types=1);
  * Pagina "Donazioni"
  */
 
-$base = function_exists(‘base_url’) ? base_url() : ‘’;
+$base = function_exists('base_url') ? base_url() : '';
 
 /** @var array<string,mixed> $cfg */
 $donFormOk  = false;
-$donFormErr = ‘’;
+$donFormErr = '';
 
-if ($_SERVER[‘REQUEST_METHOD’] === ‘POST’ && isset($_POST[‘don_submit’])) {
-    $donName    = trim((string)($_POST[‘don_name’]    ?? ‘’));
-    $donEmail   = trim((string)($_POST[‘don_email’]   ?? ‘’));
-    $donType    = trim((string)($_POST[‘don_type’]    ?? ‘’));
-    $donMessage = trim((string)($_POST[‘don_message’] ?? ‘’));
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['don_submit'])) {
+    $donName    = trim((string)($_POST['don_name']    ?? ''));
+    $donEmail   = trim((string)($_POST['don_email']   ?? ''));
+    $donType    = trim((string)($_POST['don_type']    ?? ''));
+    $donMessage = trim((string)($_POST['don_message'] ?? ''));
 
-    $allowedTypes = [‘libri’ => ‘Donazione di libri/materiali’, ‘economica’ => ‘Donazione economica’, ‘altro’ => ‘Altro’];
+    $allowedTypes = ['libri' => 'Donazione di libri/materiali', 'economica' => 'Donazione economica', 'altro' => 'Altro'];
 
-    if ($donName === ‘’ || $donEmail === ‘’ || !filter_var($donEmail, FILTER_VALIDATE_EMAIL)) {
-        $donFormErr = ‘Inserisci nome e indirizzo email valido.’;
-    } elseif ($donMessage === ‘’) {
-        $donFormErr = ‘Scrivi un breve messaggio per descrivere la donazione.’;
+    if ($donName === '' || $donEmail === '' || !filter_var($donEmail, FILTER_VALIDATE_EMAIL)) {
+        $donFormErr = 'Inserisci nome e indirizzo email valido.';
+    } elseif ($donMessage === '') {
+        $donFormErr = 'Scrivi un breve messaggio per descrivere la donazione.';
     } else {
-        $typeLabel = $allowedTypes[$donType] ?? ‘Donazione’;
-        $subject   = ‘[Biblioteca] ‘ . $typeLabel . ‘ da ‘ . $donName;
-        $body      = ‘<p><strong>Tipo:</strong> ‘ . h($typeLabel) . ‘</p>’
-                   . ‘<p><strong>Nome:</strong> ‘ . h($donName) . ‘</p>’
-                   . ‘<p><strong>Email:</strong> ‘ . h($donEmail) . ‘</p>’
-                   . ‘<p><strong>Messaggio:</strong><br>’ . nl2br(h($donMessage)) . ‘</p>’;
+        $typeLabel = $allowedTypes[$donType] ?? 'Donazione';
+        $subject   = '[Biblioteca] ' . $typeLabel . ' da ' . $donName;
+        $body      = '<p><strong>Tipo:</strong> ' . h($typeLabel) . '</p>'
+                   . '<p><strong>Nome:</strong> ' . h($donName) . '</p>'
+                   . '<p><strong>Email:</strong> ' . h($donEmail) . '</p>'
+                   . '<p><strong>Messaggio:</strong><br>' . nl2br(h($donMessage)) . '</p>';
 
-        $staffEmail = (string)($cfg[‘mail’][‘staff_email’] ?? ‘’);
+        $staffEmail = (string)($cfg['mail']['staff_email'] ?? '');
 
         try {
-            require_once ROOT . ‘/lib/EmailService.php’;
+            require_once ROOT . '/lib/EmailService.php';
             $mailer = new EmailService($cfg, ROOT);
-            $to = $staffEmail ?: ‘biblioteca@anpiudine.org’;
-            $mailer->send($to, $subject, ‘donazione’, [
-                ‘don_type_label’ => $typeLabel,
-                ‘don_name’       => $donName,
-                ‘don_email’      => $donEmail,
-                ‘don_message’    => $donMessage,
+            $to = $staffEmail ?: 'biblioteca@anpiudine.org';
+            $mailer->send($to, $subject, 'donazione', [
+                'don_type_label' => $typeLabel,
+                'don_name'       => $donName,
+                'don_email'      => $donEmail,
+                'don_message'    => $donMessage,
             ]);
             $donFormOk = true;
         } catch (Throwable $e) {
-            $donFormOk = true; // non blocchiamo l’utente per errori email
+            $donFormOk = true; // non blocchiamo l'utente per errori email
         }
     }
 }
@@ -76,10 +76,10 @@ if ($_SERVER[‘REQUEST_METHOD’] === ‘POST’ && isset($_POST[‘don_submit�
     </p>
 
     <ul>
-        <li>storia della <strong>Resistenza</strong> e dell’antifascismo;</li>
+        <li>storia della <strong>Resistenza</strong> e dell'antifascismo;</li>
         <li>storia del <strong>Novecento</strong>, con attenzione al Friuli Venezia Giulia;</li>
         <li>storia politica e sociale, diritti umani, memoria e deportazioni;</li>
-        <li>fonti a stampa, opuscoli, riviste, documenti d’archivio coerenti con le finalità dell’ANPI.</li>
+        <li>fonti a stampa, opuscoli, riviste, documenti d'archivio coerenti con le finalità dell'ANPI.</li>
     </ul>
 
     <p>
@@ -89,7 +89,7 @@ if ($_SERVER[‘REQUEST_METHOD’] === ‘POST’ && isset($_POST[‘don_submit�
     </p>
 
     <ul>
-        <li>l’accettazione avviene dopo una <strong>valutazione bibliografica</strong> e di stato di conservazione;</li>
+        <li>l'accettazione avviene dopo una <strong>valutazione bibliografica</strong> e di stato di conservazione;</li>
         <li>non possono essere accolti materiali in condizioni gravemente compromesse
             (muffe, danni strutturali, forte usura);</li>
         <li>in caso di donazioni molto consistenti può essere richiesta una
@@ -114,7 +114,7 @@ if ($_SERVER[‘REQUEST_METHOD’] === ‘POST’ && isset($_POST[‘don_submit�
     </p>
 
     <ul>
-        <li>l’acquisto di <strong>nuove pubblicazioni</strong> e basi dati;</li>
+        <li>l'acquisto di <strong>nuove pubblicazioni</strong> e basi dati;</li>
         <li>la <strong>catalogazione</strong> e digitalizzazione di fondi documentari;</li>
         <li>attività di <strong>didattica e divulgazione</strong> rivolte a scuole e cittadinanza;</li>
         <li>interventi di <strong>conservazione</strong> e valorizzazione del patrimonio.</li>
@@ -134,7 +134,7 @@ if ($_SERVER[‘REQUEST_METHOD’] === ‘POST’ && isset($_POST[‘don_submit�
     <p>
         Per informazioni amministrative, ricevute o donazioni finalizzate a progetti
         specifici (es. digitalizzazioni, mostre, attività con le scuole) è possibile
-        contattare la segreteria ANPI all’indirizzo:
+        contattare la segreteria ANPI all'indirizzo:
         <a href="mailto:info@anpiudine.org">info@anpiudine.org</a>.
     </p>
 
