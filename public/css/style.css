@@ -1948,174 +1948,79 @@ input[type="submit"] {
    PAGINA TOPICS – TUTTI I TEMI (A–Z)
    ========================================================= */
 
-.page-section--topics {
-  margin-bottom: 2.25rem;
+/* ---- Pagina Temi ---- */
+.page-section--topics .topics-header { margin-bottom: .75rem; }
+.page-section--topics .topics-header h1 { margin-bottom: .25rem; }
+
+.topics-subtitle {
+  color: #6b7280;
+  font-size: .9rem;
+  margin: 0 0 1.25rem;
 }
 
-/* Layout a due colonne per topics: colonna sinistra A–Z, destra i gruppi */
-@media (min-width: 900px) {
-  .page-section--topics {
-    display: grid;
-    grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
-    column-gap: 1.75rem;
-    align-items: flex-start;
-  }
-
-  .page-section--topics .topics-header,
-  .page-section--topics .topics-actions {
-    grid-column: 1 / -1;
-  }
-
-  .topics-index { grid-column: 1; }
-  .topics-group { grid-column: 2; }
-}
-
-/* Header pagina temi */
-.page-section--topics .topics-header {
-  margin-bottom: 1rem;
-}
-
-.page-section--topics .topics-header h1 {
-  margin-bottom: 0.5rem;
-}
-
-.page-section--topics .home-hero-subtitle {
-  max-width: 60rem;
-}
-
-/* Piccola azione sopra la lista (link "Torna alla home") */
-.page-section--topics .topics-actions {
-  margin: 0.75rem 0 1.25rem;
-}
-
-/* Barra A–Z sticky nella colonna sinistra */
+/* Barra A–Z orizzontale */
 .topics-index {
-  position: sticky;
-  top: 130px; /* spazio sotto l'header fisso */
-  z-index: 5;
-  margin: 0 0 1.5rem;
-  padding: 0.6rem 0.75rem;
-  border-radius: 6px;
-  border: 1px solid var(--color-border-subtle);
-  background-color: #fafafa;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
-  align-self: flex-start;
-}
-
-/* Lista delle lettere A–Z: griglia compatta, niente scroll orizzontale */
-.topics-index-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 0.35rem;
-  overflow-x: visible;
-  -webkit-overflow-scrolling: touch;
+  gap: .25rem .3rem;
+  padding: .6rem .75rem;
+  margin-bottom: 1.75rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  position: sticky;
+  top: 4px;
+  z-index: 10;
 }
 
-.topics-index-list::after {
-  content: "";
-  flex: 0 0 0.5rem;
-}
-
-.topics-index-item {
-  flex: 0 0 auto;
-}
-
-/* Pillola con la lettera */
 .topics-index-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1.9rem;
-  padding: 0.2rem 0.5rem;
+  min-width: 1.8rem;
+  padding: .2rem .45rem;
   border-radius: 999px;
-  border: 1px solid var(--color-border-subtle);
-  background-color: #ffffff;
-  font-size: 0.78rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  font-size: .78rem;
+  font-weight: 700;
   color: #374151;
   text-decoration: none;
-  transition:
-    background-color 0.12s ease,
-    color 0.12s ease,
-    border-color 0.12s ease,
-    box-shadow 0.12s ease;
+  transition: background .1s, color .1s, border-color .1s;
 }
-
 .topics-index-link:hover,
 .topics-index-link:focus-visible {
+  background: #fdf2f2;
   border-color: var(--color-primary);
-  background-color: #fdf2f2;
   color: var(--color-primary);
   text-decoration: none;
-  box-shadow: 0 0 0 1px rgba(185, 28, 34, 0.12);
 }
 
-/* Sezione per ogni iniziale */
+/* Corpo: gruppi per lettera */
+.topics-body { }
+
 .topics-group {
-  margin-top: 2rem;
-  padding-top: 1rem;
-  border-top: 1px solid #e5e7eb;
-  /* Lascia spazio sotto l'header quando si arriva da un link A–Z */
-  scroll-margin-top: 130px;
+  margin-bottom: 1.75rem;
+  scroll-margin-top: 56px;
 }
 
-/* Titolo lettera (A, B, C, Altro...) */
 .topics-group-title {
-  font-size: 1.1rem;
-  margin-bottom: 0.65rem;
+  font-size: .8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #9ca3af;
+  margin: 0 0 .5rem;
+  padding-bottom: .35rem;
+  border-bottom: 1px solid #f3f4f6;
 }
 
-/* Lista dei tag in ogni gruppo (multi-colonna) */
-.topics-group-list {
-  margin-top: 0.25rem;
-  display: block;
-  column-count: 3;
-  column-gap: 1.5rem;
-}
+/* I tag usano già .tag-cloud-list (display:flex; flex-wrap:wrap) — nessun override */
 
-/* Ogni <li> si comporta come blocco in colonna */
-.page-section--topics .topics-group-list li {
-  break-inside: avoid;
-  -webkit-column-break-inside: avoid;
-  margin-bottom: 0.25rem;
-}
-
-/* Spaziatura leggermente maggiore per i tag nella pagina temi */
-.page-section--topics .subject-tag {
-  margin-bottom: 0.15rem;
-  width: 100%;
-  justify-content: flex-start;
-}
-
-/* Responsive: su schermi medi 2 colonne, su piccoli 1 colonna */
-@media (max-width: 900px) {
-  .page-section--topics .topics-group-list {
-    column-count: 2;
-  }
-}
-
-@media (max-width: 600px) {
-  .page-section--topics .topics-group-list {
-    column-count: 1;
-  }
-
-  .topics-index {
-    padding: 0.45rem 0.5rem;
-    margin-bottom: 1.2rem;
-    position: sticky;
-    top: 130px; /* allineato allo spazio header anche su mobile */
-  }
-
-  .topics-index-link {
-    min-width: 1.7rem;
-    padding: 0.15rem 0.4rem;
-    font-size: 0.74rem;
-  }
+.topics-back {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f3f4f6;
 }
 
 /* =========================================================
