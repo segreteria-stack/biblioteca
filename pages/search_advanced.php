@@ -503,14 +503,14 @@ if ($whereSql !== '') {
                         ?>
                             <div class="adv-row">
                                 <div class="adv-cell adv-cell-bool">
-                                    <select name="bool[]" class="adv-bool">
+                                    <select name="bool[]" class="adv-bool" aria-label="Operatore logico riga <?= $index + 1 ?>">
                                         <option value="AND"<?= $rowBool === 'AND' ? ' selected' : '' ?>>AND</option>
                                         <option value="OR"<?=  $rowBool === 'OR'  ? ' selected' : '' ?>>OR</option>
                                         <option value="NOT"<?= $rowBool === 'NOT' ? ' selected' : '' ?>>NOT</option>
                                     </select>
                                 </div>
                                 <div class="adv-cell adv-cell-field">
-                                    <select name="field[]" class="adv-field">
+                                    <select name="field[]" class="adv-field" aria-label="Campo di ricerca riga <?= $index + 1 ?>">
                                         <option value="title"<?=     $rowField === 'title'     ? ' selected' : '' ?>>Titolo</option>
                                         <option value="author"<?=    $rowField === 'author'    ? ' selected' : '' ?>>Autore</option>
                                         <option value="subject"<?=   $rowField === 'subject'   ? ' selected' : '' ?>>Soggetto</option>
@@ -523,7 +523,7 @@ if ($whereSql !== '') {
                                     </select>
                                 </div>
                                 <div class="adv-cell adv-cell-op">
-                                    <select name="op[]" class="adv-op">
+                                    <select name="op[]" class="adv-op" aria-label="Operatore di confronto riga <?= $index + 1 ?>">
                                         <option value="contains"<?= $rowOp === 'contains' ? ' selected' : '' ?>>contiene</option>
                                         <option value="equals"<?=   $rowOp === 'equals'   ? ' selected' : '' ?>>è esattamente</option>
                                         <option value="starts"<?=   $rowOp === 'starts'   ? ' selected' : '' ?>>inizia con</option>
@@ -531,7 +531,7 @@ if ($whereSql !== '') {
                                     </select>
                                 </div>
                                 <div class="adv-cell adv-cell-value">
-                                    <input type="text" name="value[]" value="<?= h($rowValue) ?>" placeholder="Inserisci il termine di ricerca" data-autocomplete="1" autocomplete="off">
+                                    <input type="text" name="value[]" value="<?= h($rowValue) ?>" placeholder="Inserisci il termine di ricerca" aria-label="Termine di ricerca riga <?= $index + 1 ?>" data-autocomplete="1" autocomplete="off">
                                 </div>
                                 <div class="adv-cell adv-cell-remove">
                                     <button type="button" class="adv-remove" aria-label="Rimuovi riga">×</button>

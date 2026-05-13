@@ -419,7 +419,7 @@ if ($initials === '') $initials = '?';
 <!-- =====================================================
      TAB BAR
      ===================================================== -->
-<div class="apd-tabs" style="margin-bottom:0">
+<nav class="apd-tabs" style="margin-bottom:0" aria-label="Sezioni area utente">
   <?php
   $tabs = [
     'loans'    => ['label' => 'Prestiti attivi',  'count' => $countLoans   > 0 ? $countLoans   : null],
@@ -431,14 +431,16 @@ if ($initials === '') $initials = '?';
   foreach ($tabs as $key => $t):
   ?>
     <a href="<?= h($base) ?>/index.php?page=patron_area&tab=<?= $key ?>"
-       class="apd-tab <?= $tab === $key ? 'is-active' : '' ?>">
+       class="apd-tab <?= $tab === $key ? 'is-active' : '' ?>"
+       <?= $tab === $key ? 'aria-current="page"' : '' ?>>
       <?= h($t['label']) ?>
       <?php if ($t['count'] !== null): ?>
-        <span class="apd-tab-count"><?= (int)$t['count'] ?></span>
+        <span class="apd-tab-count" aria-hidden="true"><?= (int)$t['count'] ?></span>
+        <span class="sr-only">(<?= (int)$t['count'] ?>)</span>
       <?php endif; ?>
     </a>
   <?php endforeach; ?>
-</div>
+</nav>
 
 <!-- =====================================================
      TAB: PRESTITI ATTIVI

@@ -606,7 +606,7 @@ $needsCoverJs   = ($isbnForJs !== '' && $gbApiKey !== '' && !CoverService::hasLo
                         <?php foreach ($externalLinks as $link): ?>
                             <li>
                                 <a href="<?= h($link['url']) ?>" target="_blank" rel="noopener noreferrer">
-                                    <span class="item-external-icon"><?= $link['icon'] ?></span>
+                                    <span class="item-external-icon" aria-hidden="true"><?= $link['icon'] ?></span>
                                     <?= h($link['label']) ?>
                                 </a>
                             </li>

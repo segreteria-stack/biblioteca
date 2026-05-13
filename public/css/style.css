@@ -89,6 +89,44 @@
 }
 
 /* =========================================================
+   ACCESSIBILITÀ – UTILITÀ
+   ========================================================= */
+
+/* Nasconde visivamente ma espone ai tecnologie assistive */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Skip link – visibile solo a focus da tastiera */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 1rem;
+  z-index: 9999;
+  padding: 0.5rem 1rem;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: bold;
+  border-radius: 0 0 4px 4px;
+  text-decoration: none;
+  transition: top 0.15s ease;
+}
+.skip-link:focus {
+  top: 0;
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+}
+
+/* =========================================================
    RESET DI BASE
    ========================================================= */
 
@@ -2419,7 +2457,14 @@ input[type="submit"] {
 }
 
 @media (prefers-reduced-motion: reduce){
-  .contact-card{ transition:none; }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 .contact-card:hover{
@@ -4317,11 +4362,11 @@ input[type="submit"] {
   white-space: nowrap;
 }
 .availability-available    { background-color: #dcfce7; color: #166534; }
-.availability-available::before    { content: "●"; font-size: 0.55rem; color: #22c55e; }
+.availability-available::before    { content: "●" / ""; font-size: 0.55rem; color: #22c55e; }
 .availability-unavailable  { background-color: #fee2e2; color: #991b1b; }
-.availability-unavailable::before  { content: "●"; font-size: 0.55rem; color: #ef4444; }
+.availability-unavailable::before  { content: "●" / ""; font-size: 0.55rem; color: #ef4444; }
 .availability-reserved     { background-color: #fef9c3; color: #713f12; }
-.availability-reserved::before     { content: "●"; font-size: 0.55rem; color: #eab308; }
+.availability-reserved::before     { content: "●" / ""; font-size: 0.55rem; color: #eab308; }
 .availability-other        { background-color: #f0f9ff; color: #075985; }
-.availability-other::before        { content: "●"; font-size: 0.55rem; color: #0ea5e9; }
+.availability-other::before        { content: "●" / ""; font-size: 0.55rem; color: #0ea5e9; }
 .availability-unknown      { background-color: #f3f4f6; color: #4b5563; }

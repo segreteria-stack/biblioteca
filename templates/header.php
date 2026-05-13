@@ -74,6 +74,7 @@ $titleHtml = (string)($title ?? 'OPAC – Biblioteca della Resistenza');
 
 </head>
 <body style="overflow-x:hidden">
+<a class="skip-link" href="#main-content">Salta al contenuto principale</a>
 <header class="site-header">
 
     <!-- Barra utility (accessi riservati) -->
@@ -156,4 +157,4 @@ $titleHtml = (string)($title ?? 'OPAC – Biblioteca della Resistenza');
     </div>
 </header>
 
-<main class="site-main container">
+<main id="main-content" class="site-main container">

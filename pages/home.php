@@ -143,7 +143,7 @@ try {
     <div class="container home-hero-banner-inner">
         <div class="home-hero-banner-text">
             <div class="home-hero-badge">
-                <span class="home-hero-badge-dot"></span>
+                <span class="home-hero-badge-dot" aria-hidden="true"></span>
                 Archivio vivo della memoria democratica
             </div>
             <?php if ($totalTitoli > 0): ?>
