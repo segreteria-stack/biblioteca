@@ -10,6 +10,7 @@
 declare(strict_types=1);
 
 $baseUrl = base_url();
+require_once __DIR__ . '/../lib/marc_helpers.php';
 
 /** @var \PDO $pdo */
 $pdo = DB::conn();
@@ -99,23 +100,41 @@ try {
     $totalTitoli = (int)$pdo->query("SELECT COUNT(*) FROM biblio WHERE opac_flg = 'Y'")->fetchColumn();
 } catch (\PDOException $e) {}
 
-// Top 12 soggetti per la sezione "Esplora per tema"
+// Top soggetti per la sezione "Esplora per tema"
+// Fonti: topic1..5 + biblio_field 650/651 $a — normalizzati e deduplicati
 $topTopics = [];
 try {
-    $sqlTopics = "
-        SELECT topic, COUNT(*) AS cnt
-        FROM (
-            SELECT topic1 AS topic FROM biblio WHERE opac_flg = 'Y' AND topic1 <> ''
-            UNION ALL SELECT topic2 FROM biblio WHERE opac_flg = 'Y' AND topic2 <> ''
-            UNION ALL SELECT topic3 FROM biblio WHERE opac_flg = 'Y' AND topic3 <> ''
-            UNION ALL SELECT topic4 FROM biblio WHERE opac_flg = 'Y' AND topic4 <> ''
-            UNION ALL SELECT topic5 FROM biblio WHERE opac_flg = 'Y' AND topic5 <> ''
+    $stmt = $pdo->query("
+        SELECT bibid, topic FROM (
+            SELECT bibid, topic1 AS topic FROM biblio WHERE opac_flg='Y' AND topic1 <> ''
+            UNION ALL SELECT bibid, topic2 FROM biblio WHERE opac_flg='Y' AND topic2 <> ''
+            UNION ALL SELECT bibid, topic3 FROM biblio WHERE opac_flg='Y' AND topic3 <> ''
+            UNION ALL SELECT bibid, topic4 FROM biblio WHERE opac_flg='Y' AND topic4 <> ''
+            UNION ALL SELECT bibid, topic5 FROM biblio WHERE opac_flg='Y' AND topic5 <> ''
+            UNION ALL
+            SELECT bf.bibid, bf.field_data FROM biblio_field bf
+            JOIN biblio b ON b.bibid = bf.bibid AND b.opac_flg = 'Y'
+            WHERE bf.tag IN (650, 651) AND bf.subfield_cd = 'a' AND bf.field_data <> ''
         ) t
-        GROUP BY topic
-        ORDER BY cnt DESC
-        LIMIT 14
-    ";
-    $topTopics = $pdo->query($sqlTopics)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        ORDER BY bibid
+    ");
+    $seenBibidPerLabel = [];
+    while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+        $label = marc_normalize_subject_val((string)($row['topic'] ?? ''));
+        if ($label === null) continue;
+        $key   = mb_strtolower($label, 'UTF-8');
+        $bibid = (int)$row['bibid'];
+        if (!isset($seenBibidPerLabel[$key])) {
+            $seenBibidPerLabel[$key] = ['label' => $label, 'cnt' => []];
+        }
+        $seenBibidPerLabel[$key]['cnt'][$bibid] = true;
+    }
+    $freq = [];
+    foreach ($seenBibidPerLabel as $key => $entry) {
+        $freq[] = ['topic' => $entry['label'], 'cnt' => count($entry['cnt'])];
+    }
+    usort($freq, fn($a, $b) => $b['cnt'] <=> $a['cnt']);
+    $topTopics = array_slice($freq, 0, 14);
 } catch (\PDOException $e) {}
 ?>
 

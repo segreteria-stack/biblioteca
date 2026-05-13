@@ -12,6 +12,7 @@ declare(strict_types=1);
  */
 
 $baseUrl = function_exists('base_url') ? base_url() : '';
+require_once __DIR__ . '/../lib/marc_helpers.php';
 
 try {
     /** @var PDO $pdo */
@@ -28,29 +29,42 @@ try {
 }
 
 // -----------------------------------------------------------------------------
-// 1) Recupero soggetti dalle colonne topic1..topic5 (solo record pubblici)
+// 1) Recupero soggetti da topic1..5 + biblio_field 650/651 $a
+//    Una query UNION carica (bibid, raw_topic), poi PHP normalizza e conta.
 // -----------------------------------------------------------------------------
 
-$frequencies = []; // [etichetta => conteggio]
+$frequencies = []; // [label_normalizzata => count(distinct bibid)]
 
 try {
     $stmt = $pdo->query("
-        SELECT topic1, topic2, topic3, topic4, topic5
-        FROM biblio
-        WHERE opac_flg = 'Y'
+        SELECT bibid, topic FROM (
+            SELECT bibid, topic1 AS topic FROM biblio WHERE opac_flg='Y' AND topic1 <> ''
+            UNION ALL SELECT bibid, topic2 FROM biblio WHERE opac_flg='Y' AND topic2 <> ''
+            UNION ALL SELECT bibid, topic3 FROM biblio WHERE opac_flg='Y' AND topic3 <> ''
+            UNION ALL SELECT bibid, topic4 FROM biblio WHERE opac_flg='Y' AND topic4 <> ''
+            UNION ALL SELECT bibid, topic5 FROM biblio WHERE opac_flg='Y' AND topic5 <> ''
+            UNION ALL
+            SELECT bf.bibid, bf.field_data FROM biblio_field bf
+            JOIN biblio b ON b.bibid = bf.bibid AND b.opac_flg = 'Y'
+            WHERE bf.tag IN (650, 651) AND bf.subfield_cd = 'a' AND bf.field_data <> ''
+        ) t
+        ORDER BY bibid
     ");
+
+    // Conta distinct bibid per label normalizzata
+    $seenBibidPerLabel = []; // [label_key => [bibid => true]]
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        foreach (['topic1', 'topic2', 'topic3', 'topic4', 'topic5'] as $col) {
-            $raw = trim((string)($row[$col] ?? ''));
-            if ($raw === '') continue;
-            // Split on ; or | only — not on , to avoid breaking "Cognome, Nome"
-            $parts = preg_split('/\s*[;|]\s*/', $raw) ?: [$raw];
-            foreach ($parts as $part) {
-                $label = trim($part);
-                if ($label === '') continue;
-                $frequencies[$label] = ($frequencies[$label] ?? 0) + 1;
-            }
+        $label = marc_normalize_subject_val((string)($row['topic'] ?? ''));
+        if ($label === null) continue;
+        $key   = mb_strtolower($label, 'UTF-8');
+        $bibid = (int)$row['bibid'];
+        if (!isset($seenBibidPerLabel[$key])) {
+            $seenBibidPerLabel[$key] = ['label' => $label, 'bibids' => []];
         }
+        $seenBibidPerLabel[$key]['bibids'][$bibid] = true;
+    }
+    foreach ($seenBibidPerLabel as $entry) {
+        $frequencies[(string)$entry['label']] = count($entry['bibids']);
     }
 } catch (PDOException $e) {
     ?>
@@ -60,35 +74,6 @@ try {
     </section>
     <?php
     return;
-}
-
-// -----------------------------------------------------------------------------
-// 1b) Arricchimento con soggetti MARC da biblio_field (tag 600-699, subfield a)
-// -----------------------------------------------------------------------------
-
-try {
-    $stmtMarc = $pdo->query("
-        SELECT bf.field_data AS topic, COUNT(DISTINCT bf.bibid) AS cnt
-        FROM biblio_field bf
-        JOIN biblio b ON b.bibid = bf.bibid AND b.opac_flg = 'Y'
-        WHERE bf.tag BETWEEN 600 AND 699
-          AND bf.subfield_cd = 'a'
-          AND bf.field_data IS NOT NULL
-          AND bf.field_data != ''
-        GROUP BY bf.field_data
-    ");
-    while ($row = $stmtMarc->fetch(PDO::FETCH_ASSOC)) {
-        $label = trim((string)$row['topic']);
-        if ($label === '') continue;
-        // Somma con eventuale frequenza già conteggiata dai campi denormalizzati,
-        // evitando doppio conteggio se il valore è identico.
-        if (!isset($frequencies[$label])) {
-            $frequencies[$label] = (int)$row['cnt'];
-        }
-        // Se già presente dai topic1..5, non sommiamo per non duplicare
-    }
-} catch (PDOException $e) {
-    // I soggetti MARC sono un arricchimento opzionale; proseguiamo anche se fallisce
 }
 
 if ($frequencies === []) {

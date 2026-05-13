@@ -340,20 +340,29 @@ function marc_extract_logical_fields(array $index, array $base = []): array
  * @param array $record  Row della tabella biblio (deve contenere topic1..5)
  * @return string[]
  */
+/**
+ * Normalizza un singolo valore soggetto: trim, ucfirst se tutto maiuscolo,
+ * restituisce null se il valore è solo cifre/punteggiatura o vuoto.
+ */
+function marc_normalize_subject_val(string $val): ?string
+{
+    $val = trim($val);
+    if ($val === '') return null;
+    if (preg_match('/^[\d\s\-–—.,:;]+$/', $val)) return null;
+    if ($val === mb_strtoupper($val, 'UTF-8')) {
+        $val = mb_convert_case($val, MB_CASE_TITLE, 'UTF-8');
+    }
+    return $val;
+}
+
 function marc_get_subjects(PDO $pdo, int $bibid, array $record = []): array
 {
     $subjects = [];
     $seenKeys = [];
 
     $addSubject = function (string $val) use (&$subjects, &$seenKeys): void {
-        $val = trim($val);
-        if ($val === '') return;
-        // Scarta valori che sono solo cifre o punteggiatura
-        if (preg_match('/^[\d\s\-–—.,:;]+$/', $val)) return;
-        // Normalizza: se tutto maiuscolo, applica ucwords
-        if ($val === mb_strtoupper($val)) {
-            $val = mb_convert_case($val, MB_CASE_TITLE, 'UTF-8');
-        }
+        $val = marc_normalize_subject_val($val);
+        if ($val === null) return;
         $key = mb_strtolower($val, 'UTF-8');
         if (isset($seenKeys[$key])) return;
         $seenKeys[$key] = true;
@@ -404,26 +413,17 @@ function search_fetch_subjects_map(PDO $pdo, array $bibids, array $records = [])
     $bibids = array_values(array_unique(array_filter(array_map('intval', $bibids), static fn($v) => $v > 0)));
     if ($bibids === []) return $out;
 
-    $normalize = static function (string $val, array &$seen): ?string {
-        $val = trim($val);
-        if ($val === '') return null;
-        if (preg_match('/^[\d\s\-–—.,:;]+$/', $val)) return null;
-        if ($val === mb_strtoupper($val)) {
-            $val = mb_convert_case($val, MB_CASE_TITLE, 'UTF-8');
-        }
-        $key = mb_strtolower($val, 'UTF-8');
-        if (isset($seen[$key])) return null;
-        $seen[$key] = true;
-        return $val;
-    };
-
     foreach ($bibids as $bid) {
         $out[$bid] = [];
         $seen      = [];
         $rec       = $records[$bid] ?? [];
         foreach (['topic1','topic2','topic3','topic4','topic5'] as $tk) {
-            $v = $normalize((string)($rec[$tk] ?? ''), $seen);
-            if ($v !== null) $out[$bid][] = $v;
+            $v = marc_normalize_subject_val((string)($rec[$tk] ?? ''));
+            if ($v === null) continue;
+            $key = mb_strtolower($v, 'UTF-8');
+            if (isset($seen[$key])) continue;
+            $seen[$key] = true;
+            $out[$bid][] = $v;
         }
     }
 
@@ -438,21 +438,24 @@ function search_fetch_subjects_map(PDO $pdo, array $bibids, array $records = [])
             ORDER BY bibid, tag, fieldid
         ");
         $st->execute($bibids);
-        $seen = [];
+        $seen    = [];
         $lastBid = -1;
         while ($row = $st->fetch(PDO::FETCH_ASSOC)) {
             $bid = (int)$row['bibid'];
             if ($bid !== $lastBid) {
                 $seen    = [];
                 $lastBid = $bid;
-                // Pre-carica i seen dai topic già inseriti
                 foreach ($out[$bid] ?? [] as $s) {
                     $seen[mb_strtolower($s, 'UTF-8')] = true;
                 }
             }
             if (!isset($out[$bid])) continue;
-            $v = $normalize((string)($row['field_data'] ?? ''), $seen);
-            if ($v !== null) $out[$bid][] = $v;
+            $v = marc_normalize_subject_val((string)($row['field_data'] ?? ''));
+            if ($v === null) continue;
+            $key = mb_strtolower($v, 'UTF-8');
+            if (isset($seen[$key])) continue;
+            $seen[$key] = true;
+            $out[$bid][] = $v;
         }
     } catch (PDOException $e) {
         // non bloccante
