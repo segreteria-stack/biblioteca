@@ -194,28 +194,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $newUserId = (int)$pdo->lastInsertId();
 
-            // Se modalità "invite", creiamo anche un token in staff_password_reset
+            // Se modalità "invite", creiamo un token e inviamo email di attivazione
             if ($mode === 'invite' && $newUserId > 0) {
-                $rawToken   = bin2hex(random_bytes(32));
-                $tokenHash  = hash('sha256', $rawToken);
-                $createdAt  = $now;
-                $expiresAt  = date('Y-m-d H:i:s', time() + 86400); // 24 ore
+                $rawToken  = bin2hex(random_bytes(32));
+                $tokenHash = hash('sha256', $rawToken);
+                $expiresAt = date('Y-m-d H:i:s', time() + 172800); // 48 ore
 
-                $sqlReset = '
+                $pdo->prepare('
                     INSERT INTO staff_password_reset (userid, token_hash, created_at, expires_at, used)
-                    VALUES (:userid, :token_hash, :created_at, :expires_at, 0)
-                ';
-                $stmtR = $pdo->prepare($sqlReset);
-                $stmtR->bindValue(':userid',     $newUserId, PDO::PARAM_INT);
-                $stmtR->bindValue(':token_hash', $tokenHash, PDO::PARAM_STR);
-                $stmtR->bindValue(':created_at', $createdAt, PDO::PARAM_STR);
-                $stmtR->bindValue(':expires_at', $expiresAt, PDO::PARAM_STR);
-                $stmtR->execute();
+                    VALUES (?, ?, NOW(), ?, 0)
+                ')->execute([$newUserId, $tokenHash, $expiresAt]);
 
-                // Link di reset "di test" – la pagina staff_reset verrà implementata
-                $resetUrl = rtrim($baseUrl, '/') . '/index.php?page=staff_reset&token=' . urlencode($rawToken);
-                $resetInfo = 'Link di impostazione password generato (solo test): ' . $resetUrl
-                           . ' (valido fino a ' . $expiresAt . ').';
+                // Costruisce il link completo (richiede public_host in config)
+                $host     = rtrim((string)($GLOBALS['cfg']['app']['public_host'] ?? ''), '/');
+                $base     = rtrim((string)($GLOBALS['cfg']['app']['base_url'] ?? $baseUrl), '/');
+                $resetUrl = ($host !== '' ? $host : '') . $base
+                          . '/index.php?page=staff_reset&token=' . urlencode($rawToken);
+
+                // Invia email se possibile
+                $emailSent = false;
+                if ($email !== '') {
+                    try {
+                        require_once __DIR__ . '/../lib/EmailService.php';
+                        $mail = new EmailService($GLOBALS['cfg'] ?? [], dirname(__DIR__));
+                        $emailSent = $mail->send(
+                            $email,
+                            'Attivazione account staff — Biblioteca della Resistenza',
+                            'staff/invite',
+                            [
+                                'firstName' => $firstName,
+                                'username'  => $username,
+                                'resetLink' => $resetUrl,
+                                'expires'   => '48 ore',
+                            ]
+                        );
+                    } catch (Throwable $_e) {}
+                }
+
+                if ($emailSent) {
+                    $resetInfo = 'Email di attivazione inviata a ' . $email . ' (link valido 48 ore).';
+                } else {
+                    $resetInfo = 'Link di attivazione (email non inviata'
+                               . ($email === '' ? ' — nessun indirizzo email fornito' : '') . '): '
+                               . $resetUrl . ' (valido fino a ' . $expiresAt . ').';
+                }
             }
 
             $pdo->commit();
