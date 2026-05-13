@@ -6,8 +6,9 @@ declare(strict_types=1);
    ========================= */
 $cfg = $cfg ?? [];
 
-$cfg['app']['base_url'] = '/public';  // URL base delle pagine pubbliche
-$cfg['app']['debug']    = false;       // true solo in ambiente di sviluppo locale
+$cfg['app']['base_url']    = '/public';              // URL base delle pagine pubbliche
+$cfg['app']['public_host'] = 'https://biblioteca.anpiudine.org'; // hostname pubblico (senza slash finale)
+$cfg['app']['debug']       = false;                  // true solo in ambiente di sviluppo locale
 
 if (!defined('PAGE_SIZE')) define('PAGE_SIZE', 30);
 if (!defined('APP_NAME'))  define('APP_NAME', 'OPAC Biblioteca');
