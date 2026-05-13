@@ -178,6 +178,8 @@ if ($q !== '') {
         }
         $subParts[]   = "EXISTS (SELECT 1 FROM biblio_field bfq WHERE bfq.bibid = b.bibid AND bfq.tag BETWEEN 600 AND 699 AND bfq.subfield_cd IN ('a','x','y','z') AND bfq.field_data LIKE ?)";
         $params[]     = $pattern;
+        $subParts[]   = "EXISTS (SELECT 1 FROM biblio_field bfe WHERE bfe.bibid = b.bibid AND bfe.tag IN (500,520,490,260) AND bfe.field_data LIKE ?)";
+        $params[]     = $pattern;
         $whereParts[] = '(' . implode(' OR ', $subParts) . ')';
     }
 }

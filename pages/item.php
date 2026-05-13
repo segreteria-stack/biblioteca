@@ -11,6 +11,7 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/../lib/marc_helpers.php';
+require_once __DIR__ . '/../lib/EmailService.php';
 
 $pdo = DB::conn();
 
@@ -55,10 +56,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     ");
                     try {
                         $ins->execute([':bibid' => $bibidPost, ':copyid' => null, ':mbrid' => (int)$patron['mbrid']]);
-                        $holdOk = 'Prenotazione registrata.';
                     } catch (PDOException $e) {
                         $ins->execute([':bibid' => $bibidPost, ':copyid' => 0, ':mbrid' => (int)$patron['mbrid']]);
-                        $holdOk = 'Prenotazione registrata.';
+                    }
+                    $holdOk = 'Prenotazione registrata.';
+
+                    // Email di conferma al lettore
+                    $patronEmail = (string)($patron['email'] ?? '');
+                    if ($patronEmail !== '') {
+                        try {
+                            $holdTitleStmt = $pdo->prepare('SELECT title, author FROM biblio WHERE bibid = ? LIMIT 1');
+                            $holdTitleStmt->execute([$bibidPost]);
+                            $holdBook = $holdTitleStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+                            $mailerHold = new EmailService($cfg, ROOT);
+                            $mailerHold->send($patronEmail, 'Prenotazione confermata — Biblioteca della Resistenza', 'patron/hold_confirm', [
+                                'patron_name' => trim((string)($patron['first_name'] ?? '') . ' ' . (string)($patron['last_name'] ?? '')),
+                                'book_title'  => (string)($holdBook['title'] ?? ''),
+                                'book_author' => (string)($holdBook['author'] ?? ''),
+                                'bibid'       => $bibidPost,
+                            ]);
+                        } catch (Throwable) { /* email non bloccante */ }
                     }
                 }
             } catch (Throwable $e) {

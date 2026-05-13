@@ -126,6 +126,12 @@ function fmt_metric(int $n): string
             <span class="staff-quick-text">Anagrafica lettori</span>
         </a>
 
+        <a class="staff-quick-card" href="<?= h($baseUrl) ?>/index.php?page=staff_barcodes">
+            <span class="staff-quick-icon staff-quick-icon--teal">▮▮▮</span>
+            <span class="staff-quick-title">Stampa barcode</span>
+            <span class="staff-quick-text">Etichette barcode per tutte le copie</span>
+        </a>
+
     </div>
 
     <!-- ------------------------------------------------------------------ -->

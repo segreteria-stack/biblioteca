@@ -227,7 +227,8 @@ $manualData   = ['title'=>'','title_remainder'=>'','author'=>'','responsibility'
                  'call_nmbr3'=>'','topic1'=>'','topic2'=>'','topic3'=>'','topic4'=>'',
                  'topic5'=>'','isbn'=>'','publisher'=>'','pub_year'=>'','pub_place'=>'',
                  'pages'=>'','summary'=>'','notes'=>'',
-                 'bid_sbn'=>'','dewey'=>'','lingua'=>'','paese'=>'','serie'=>''];
+                 'bid_sbn'=>'','dewey'=>'','lingua'=>'','paese'=>'','serie'=>'',
+                 'num_copies'=>'1'];
 $manualErrors  = [];
 $manualSuccess = null;
 $manualBibid   = null;
@@ -286,8 +287,13 @@ if ($method === 'manual') {
             ]);
             $manualBibid = (int)$pdo->lastInsertId();
 
-            [$copyid, $barcode] = ncn_insert_copy($pdo, $manualBibid);
-            $manualBarcode = $barcode;
+            $numCopies = max(1, min(10, (int)($manualData['num_copies'] ?: 1)));
+            $manualBarcodes = [];
+            for ($ci = 0; $ci < $numCopies; $ci++) {
+                [, $bc] = ncn_insert_copy($pdo, $manualBibid);
+                $manualBarcodes[] = $bc;
+            }
+            $manualBarcode = $manualBarcodes[0];
 
             foreach ([
                 [20,  'a', $manualData['isbn']],
@@ -712,7 +718,8 @@ $gbApiKey   = $GLOBALS['cfg']['google_books']['api_key'] ?? '';
             <div class="ncn-ok">
                 <p><strong>Record creato.</strong>
                    BIBID: <strong><?= $manualBibid ?></strong>
-                   — Barcode: <strong><?= h((string)$manualBarcode) ?></strong>
+                   — <?= count($manualBarcodes ?? []) > 1 ? count($manualBarcodes) . ' copie create' : 'Barcode' ?>:
+                   <strong><?= h(implode(', ', array_map('h', $manualBarcodes ?? [(string)$manualBarcode]))) ?></strong>
                 </p>
                 <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.6rem;">
                     <a class="btn-primary"   href="<?= h($baseUrl) ?>/index.php?page=staff_catalog_edit&amp;bibid=<?= $manualBibid ?>">Modifica record</a>
@@ -775,6 +782,7 @@ $gbApiKey   = $GLOBALS['cfg']['google_books']['api_key'] ?? '';
                     <div style="flex:1 1 120px;"><label for="call_nmbr1">Segnatura 1 <span class="req">*</span></label><input type="text" id="call_nmbr1" name="call_nmbr1" value="<?= h($manualData['call_nmbr1']) ?>" required></div>
                     <div style="flex:1 1 120px;"><label for="call_nmbr2">Segnatura 2</label><input type="text" id="call_nmbr2" name="call_nmbr2" value="<?= h($manualData['call_nmbr2']) ?>"></div>
                     <div style="flex:1 1 120px;"><label for="call_nmbr3">Segnatura 3</label><input type="text" id="call_nmbr3" name="call_nmbr3" value="<?= h($manualData['call_nmbr3']) ?>"></div>
+                    <div style="flex:0 1 90px;"><label for="num_copies">N° copie</label><input type="number" id="num_copies" name="num_copies" min="1" max="10" value="<?= h($manualData['num_copies'] ?: '1') ?>"></div>
                 </div>
             </fieldset>
 

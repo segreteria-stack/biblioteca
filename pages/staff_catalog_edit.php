@@ -372,9 +372,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
 
                 staff_updateMarcSimpleField($pdo, $upBibid, 20,  'a', trim((string)($_POST['isbn'] ?? '')));
+                staff_updateMarcSimpleField($pdo, $upBibid, 260, 'a', trim((string)($_POST['pub_place'] ?? '')));
                 staff_updateMarcSimpleField($pdo, $upBibid, 260, 'b', trim((string)($_POST['publisher'] ?? '')));
                 staff_updateMarcSimpleField($pdo, $upBibid, 260, 'c', trim((string)($_POST['pub_year'] ?? '')));
                 staff_updateMarcSimpleField($pdo, $upBibid, 300, 'a', trim((string)($_POST['pages'] ?? '')));
+                staff_updateMarcSimpleField($pdo, $upBibid, 490, 'a', trim((string)($_POST['serie'] ?? '')));
+                staff_updateMarcSimpleField($pdo, $upBibid, 82,  'a', trim((string)($_POST['dewey'] ?? '')));
+                staff_updateMarcSimpleField($pdo, $upBibid, 41,  'a', trim((string)($_POST['lingua'] ?? '')));
+                staff_updateMarcSimpleField($pdo, $upBibid, 44,  'a', trim((string)($_POST['paese'] ?? '')));
+                staff_updateMarcSimpleField($pdo, $upBibid, 901, 'a', trim((string)($_POST['bid_sbn'] ?? '')));
                 staff_updateMarcSimpleField($pdo, $upBibid, 520, 'a', trim((string)($_POST['summary'] ?? '')));
                 staff_updateMarcSimpleField($pdo, $upBibid, 500, 'a', trim((string)($_POST['notes'] ?? '')));
 
@@ -497,7 +503,13 @@ if (!$skipEditLoading && $editBibid > 0) {
                 (SELECT bf3.field_data FROM biblio_field bf3 WHERE bf3.bibid = b.bibid AND bf3.tag = 300 AND bf3.subfield_cd = \'a\' ORDER BY bf3.fieldid LIMIT 1) AS pages,
                 (SELECT bf4.field_data FROM biblio_field bf4 WHERE bf4.bibid = b.bibid AND bf4.tag = 520 AND bf4.subfield_cd = \'a\' ORDER BY bf4.fieldid LIMIT 1) AS summary_520,
                 (SELECT bf5.field_data FROM biblio_field bf5 WHERE bf5.bibid = b.bibid AND bf5.tag = 500 AND bf5.subfield_cd = \'a\' ORDER BY bf5.fieldid LIMIT 1) AS notes_500,
-                (SELECT bf6.field_data FROM biblio_field bf6 WHERE bf6.bibid = b.bibid AND bf6.tag = 20 AND bf6.subfield_cd = \'a\' ORDER BY bf6.fieldid LIMIT 1) AS isbn
+                (SELECT bf6.field_data FROM biblio_field bf6 WHERE bf6.bibid = b.bibid AND bf6.tag = 20  AND bf6.subfield_cd = \'a\' ORDER BY bf6.fieldid LIMIT 1) AS isbn,
+                (SELECT bf7.field_data FROM biblio_field bf7 WHERE bf7.bibid = b.bibid AND bf7.tag = 260 AND bf7.subfield_cd = \'a\' ORDER BY bf7.fieldid LIMIT 1) AS pub_place,
+                (SELECT bf8.field_data FROM biblio_field bf8 WHERE bf8.bibid = b.bibid AND bf8.tag = 82  AND bf8.subfield_cd = \'a\' ORDER BY bf8.fieldid LIMIT 1) AS dewey,
+                (SELECT bf9.field_data FROM biblio_field bf9 WHERE bf9.bibid = b.bibid AND bf9.tag = 41  AND bf9.subfield_cd = \'a\' ORDER BY bf9.fieldid LIMIT 1) AS lingua,
+                (SELECT bfA.field_data FROM biblio_field bfA WHERE bfA.bibid = b.bibid AND bfA.tag = 44  AND bfA.subfield_cd = \'a\' ORDER BY bfA.fieldid LIMIT 1) AS paese,
+                (SELECT bfB.field_data FROM biblio_field bfB WHERE bfB.bibid = b.bibid AND bfB.tag = 490 AND bfB.subfield_cd = \'a\' ORDER BY bfB.fieldid LIMIT 1) AS serie,
+                (SELECT bfC.field_data FROM biblio_field bfC WHERE bfC.bibid = b.bibid AND bfC.tag = 901 AND bfC.subfield_cd = \'a\' ORDER BY bfC.fieldid LIMIT 1) AS bid_sbn
             FROM biblio b
             WHERE b.bibid = :bibid
             LIMIT 1
@@ -671,6 +683,16 @@ if (!$skipEditLoading && $editBibid > 0) {
             </div>
             <div class="search-row"><label>Pagine (300 $a)</label><input type="text" name="pages" value="<?= h(trim((string)($editRecord['pages'] ?? ''))) ?>" placeholder="Es. 320 pagine, ill."></div>
             <div class="search-row"><label>ISBN (020 $a)</label><input type="text" name="isbn" value="<?= h(trim((string)($editRecord['isbn'] ?? ''))) ?>" placeholder="Es. 9788800000000"></div>
+            <div class="search-row search-row-inline">
+                <div style="flex:2 1 0%;"><label>Luogo di pubbl. (260 $a)</label><input type="text" name="pub_place" value="<?= h(trim((string)($editRecord['pub_place'] ?? ''))) ?>" placeholder="Es. Torino"></div>
+                <div style="flex:1 1 0%;"><label>Dewey (082 $a)</label><input type="text" name="dewey" value="<?= h(trim((string)($editRecord['dewey'] ?? ''))) ?>" placeholder="Es. 945.091"></div>
+            </div>
+            <div class="search-row search-row-inline">
+                <div style="flex:1 1 0%;"><label>Lingua (041 $a)</label><input type="text" name="lingua" value="<?= h(trim((string)($editRecord['lingua'] ?? ''))) ?>" placeholder="Es. ita"></div>
+                <div style="flex:1 1 0%;"><label>Paese (044 $a)</label><input type="text" name="paese" value="<?= h(trim((string)($editRecord['paese'] ?? ''))) ?>" placeholder="Es. IT"></div>
+                <div style="flex:2 1 0%;"><label>BID SBN (901 $a)</label><input type="text" name="bid_sbn" value="<?= h(trim((string)($editRecord['bid_sbn'] ?? ''))) ?>" placeholder="Es. IT\ICCU\LO1\0001234"></div>
+            </div>
+            <div class="search-row"><label>Collana / Serie (490 $a)</label><input type="text" name="serie" value="<?= h(trim((string)($editRecord['serie'] ?? ''))) ?>" placeholder="Es. Biblioteca di storia"></div>
             <div class="search-row"><label>Riassunto (520 $a)</label><textarea name="summary" rows="3"><?= h(trim((string)($editRecord['summary_520'] ?? ''))) ?></textarea></div>
             <div class="search-row"><label>Note (500 $a)</label><textarea name="notes" rows="3"><?= h(trim((string)($editRecord['notes_500'] ?? ''))) ?></textarea></div>
 

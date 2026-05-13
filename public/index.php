@@ -56,6 +56,13 @@ if (!file_exists($pagesDir . '/' . $page . '.php')) {
 
 $title = 'Biblioteca della Resistenza';
 
+// Pagine standalone: emettono il proprio HTML completo (no header/footer)
+$standalonePages = ['staff_barcodes'];
+if (in_array($page, $standalonePages, true)) {
+    require $pagesDir . '/' . $page . '.php';
+    exit;
+}
+
 require $templateDir . '/header.php';
 require $pagesDir . '/' . $page . '.php';
 require $templateDir . '/footer.php';
