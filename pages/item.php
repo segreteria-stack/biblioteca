@@ -529,7 +529,7 @@ $needsCoverJs   = ($isbnForJs !== '' && $gbApiKey !== '' && !CoverService::hasLo
 
             <?php if ($patron): ?>
                 <div class="item-sidebar-block">
-                    <span class="item-sidebar-label">Area Patron</span>
+                    <span class="item-sidebar-label">Area Utente</span>
                     <?php if ($alreadyHeld): ?>
                         <p style="margin:6px 0 0 0;color:#64748b">
                             Hai già una prenotazione attiva per questo titolo.
@@ -559,7 +559,7 @@ $needsCoverJs   = ($isbnForJs !== '' && $gbApiKey !== '' && !CoverService::hasLo
                 </div>
             <?php else: ?>
                 <div class="item-sidebar-block">
-                    <span class="item-sidebar-label">Area Patron</span>
+                    <span class="item-sidebar-label">Area Utente</span>
                     <p style="margin:6px 0 0 0;color:#64748b">
                         Per prenotare un titolo devi <a href="index.php?page=patron_login">accedere</a>.
                     </p>

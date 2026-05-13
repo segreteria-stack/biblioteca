@@ -90,7 +90,7 @@ if (!empty($_SESSION['patron']) && is_array($_SESSION['patron'])) {
                             </li>
                             <li>
                                 <a href="<?= htmlspecialchars($patronHref, ENT_QUOTES) ?>">
-                                    Area Patron
+                                    Area Utente
                                 </a>
                             </li>
                             <li>

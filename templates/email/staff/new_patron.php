@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
   <meta charset="utf-8">
-  <title>Nuova registrazione patron</title>
+  <title>Nuova registrazione utente</title>
 </head>
 <body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,Helvetica,sans-serif">
   <table width="100%" cellpadding="0" cellspacing="0">
@@ -14,7 +14,7 @@
               <h2 style="margin:0 0 12px 0;color:#333">Nuova registrazione patron</h2>
 
               <p style="margin:0 0 12px 0;color:#444">
-                È stato registrato un nuovo utente (patron) nell’OPAC.
+                È stato registrato un nuovo utente nell’OPAC.
               </p>
 
               <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">
