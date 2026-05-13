@@ -140,7 +140,7 @@ $titleHtml = (string)($title ?? 'OPAC – Biblioteca della Resistenza');
                 </span>
             </a>
 
-            <nav class="main-nav" aria-label="Navigazione principale">
+            <nav id="main-nav-links" class="main-nav" aria-label="Navigazione principale">
                 <a class="nav-link<?= ($pageId === 'home' || $pageId === '') ? ' is-active' : '' ?>"
                    href="<?= h($base) ?>/index.php">Home</a>
 
@@ -153,8 +153,34 @@ $titleHtml = (string)($title ?? 'OPAC – Biblioteca della Resistenza');
                 <a class="nav-link<?= $pageId === 'contatti' ? ' is-active' : '' ?>"
                    href="<?= h($base) ?>/index.php?page=contatti">Contatti</a>
             </nav>
+
+            <button class="nav-toggle" aria-expanded="false" aria-controls="main-nav-links" aria-label="Apri menu">
+                <span class="nav-toggle-bar"></span>
+                <span class="nav-toggle-bar"></span>
+                <span class="nav-toggle-bar"></span>
+            </button>
         </div>
     </div>
 </header>
+<script>
+(function () {
+    var btn = document.querySelector('.nav-toggle');
+    var nav = document.getElementById('main-nav-links');
+    if (!btn || !nav) return;
+    btn.addEventListener('click', function () {
+        var open = nav.classList.toggle('nav-is-open');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        btn.setAttribute('aria-label', open ? 'Chiudi menu' : 'Apri menu');
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && nav.classList.contains('nav-is-open')) {
+            nav.classList.remove('nav-is-open');
+            btn.setAttribute('aria-expanded', 'false');
+            btn.setAttribute('aria-label', 'Apri menu');
+            btn.focus();
+        }
+    });
+})();
+</script>
 
 <main id="main-content" class="site-main container">
