@@ -211,10 +211,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $copyid     = (int)($_POST['copyid'] ?? 0);
         $newBarcode = trim((string)($_POST['barcode_nmbr'] ?? ''));
         $newDesc    = trim((string)($_POST['copy_desc'] ?? ''));
-        $newStatus  = trim((string)($_POST['status_cd'] ?? ''));
+        $newStatusRaw = trim((string)($_POST['status_cd'] ?? ''));
+        $allowedStatuses = ['in','out','ln','hld','mnd','ord','crt','dis','lst'];
+        $newStatus = in_array($newStatusRaw, $allowedStatuses, true) ? $newStatusRaw : '';
 
         if ($bibid <= 0 || $copyid <= 0) {
             $errors[] = 'Parametri non validi.';
+        } elseif ($newStatus === '') {
+            $errors[] = 'Stato copia non valido.';
         } elseif ($newBarcode === '' || !preg_match('/^[A-Z0-9\-]{3,20}$/i', $newBarcode)) {
             $errors[] = 'Barcode non valido.';
         } elseif (!isBarcodeUnique($pdo, $newBarcode, $copyid)) {
@@ -459,13 +463,14 @@ if ($isSearchRequest) {
                 $whereParts = [];
                 $params = [];
 
+                $likeEsc = static fn(string $v): string => str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $v);
                 if ($titleStr !== '') {
                     $whereParts[] = 'b.title LIKE :title';
-                    $params[':title'] = '%' . $titleStr . '%';
+                    $params[':title'] = '%' . $likeEsc($titleStr) . '%';
                 }
                 if ($isbnStr !== '') {
                     $whereParts[] = 'bf.field_data LIKE :isbn';
-                    $params[':isbn'] = '%' . $isbnStr . '%';
+                    $params[':isbn'] = '%' . $likeEsc($isbnStr) . '%';
                 }
 
                 $sql = 'SELECT DISTINCT b.bibid, b.title, b.author FROM biblio b';

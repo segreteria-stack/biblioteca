@@ -1277,8 +1277,10 @@ if ($action === 'import_record_with_data') {
         updateTopics($pdo, $bibid, array_values($soggetti));
 
         // Collocazione fisica (copia 1) — SEMPRE creata; copyid atomico via AUTO_INCREMENT MySQL
-        $barcode = trim($data['barcode']   ?? '');
-        $status  = trim($data['status_cd'] ?? 'in') ?: 'in';
+        $barcode        = trim($data['barcode']   ?? '');
+        $statusRaw      = trim($data['status_cd'] ?? 'in') ?: 'in';
+        $allowedStatus  = ['in','out','ln','hld','mnd','ord','crt','dis','lst'];
+        $status         = in_array($statusRaw, $allowedStatus, true) ? $statusRaw : 'in';
         [$copyid, $barcode] = insertCopy($pdo, $bibid, $status, $barcode);
         $inserted[] = 'copia';
 

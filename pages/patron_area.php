@@ -331,7 +331,7 @@ try {
            SUM(CASE WHEN c.status_cd='in' THEN 1 ELSE 0 END) AS copies_in,
            COUNT(*) AS copies_total
     FROM {$T['biblio_hold']} h
-    JOIN {$T['biblio']} b ON b.bibid = h.bibid
+    JOIN {$T['biblio']} b ON b.bibid = h.bibid AND b.opac_flg = 'Y'
     LEFT JOIN {$T['biblio_copy']} c ON c.bibid = h.bibid
     WHERE h.mbrid = ?
     GROUP BY h.holdid, h.bibid, h.copyid, h.hold_begin_dt, b.title, b.author

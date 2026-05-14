@@ -244,7 +244,8 @@ function buildSeriesCondition(string $value, string $op, array &$params): ?strin
         if ($tokens === []) return null;
         $parts = [];
         foreach ($tokens as $tok) {
-            $pattern = '%' . $tok['value'] . '%';
+            $escaped  = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $tok['value']);
+            $pattern  = '%' . $escaped . '%';
             $parts[] = "EXISTS (SELECT 1 FROM biblio_field bfr WHERE bfr.bibid = biblio.bibid"
                      . " AND bfr.tag IN (490,440,830) AND bfr.subfield_cd = 'a' AND bfr.field_data LIKE ?)";
             $params[] = $pattern;
@@ -274,7 +275,8 @@ function buildRespCondition(string $value, string $op, array &$params): ?string
         if ($tokens === []) return null;
         $parts = [];
         foreach ($tokens as $tok) {
-            $pattern  = '%' . $tok['value'] . '%';
+            $escaped  = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $tok['value']);
+            $pattern  = '%' . $escaped . '%';
             $parts[]  = 'responsibility_stmt LIKE ?';
             $params[] = $pattern;
         }

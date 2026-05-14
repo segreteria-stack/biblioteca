@@ -246,6 +246,13 @@ function ncn_sync_index_ext(PDO $pdo, int $bibid, string $isbn, string $pubYear,
 $activeTab = (string)($_GET['tab'] ?? 'manuale');
 $method    = (string)($_POST['method'] ?? '');
 
+// Verifica CSRF per tutti i POST
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify($_POST['_csrf'] ?? '')) {
+    http_response_code(403);
+    echo '<div class="ncn-err"><p>Token CSRF non valido. Ricarica la pagina e riprova.</p></div>';
+    exit;
+}
+
 // manuale
 $manualData   = ['title'=>'','title_remainder'=>'','author'=>'','responsibility'=>'',
                  'material_cd'=>'','collection_cd'=>'','call_nmbr1'=>'','call_nmbr2'=>'',
@@ -764,6 +771,7 @@ $gbApiKey   = $GLOBALS['cfg']['google_books']['api_key'] ?? '';
 
         <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_catalog_new">
             <input type="hidden" name="method" value="manual">
+            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
 
             <fieldset class="form-section">
                 <legend>Identificazione</legend>
@@ -949,6 +957,7 @@ $gbApiKey   = $GLOBALS['cfg']['google_books']['api_key'] ?? '';
             </p>
             <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_catalog_new" enctype="multipart/form-data">
                 <input type="hidden" name="method" value="file_upload">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
                 <div class="search-row">
                     <label for="importfile">File <span class="req">*</span></label>
                     <input type="file" id="importfile" name="importfile" accept=".mrc,.iso,.marc,.txt,.enw" required>
@@ -969,6 +978,7 @@ $gbApiKey   = $GLOBALS['cfg']['google_books']['api_key'] ?? '';
             </p>
             <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_catalog_new">
                 <input type="hidden" name="method"      value="file_import">
+                <input type="hidden" name="_csrf"       value="<?= h(csrf_token()) ?>">
                 <input type="hidden" name="filekind"    value="<?= h($fileKind) ?>">
                 <input type="hidden" name="filepreview" value="<?= h($filePreview) ?>">
 
@@ -1032,6 +1042,7 @@ $gbApiKey   = $GLOBALS['cfg']['google_books']['api_key'] ?? '';
 
         <form method="post" action="<?= h($baseUrl) ?>/index.php?page=staff_catalog_new" enctype="multipart/form-data">
             <input type="hidden" name="method" value="marcxml">
+            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
             <div class="search-row">
                 <label for="marcxml">File MARCXML (.xml) <span class="req">*</span></label>
                 <input type="file" id="marcxml" name="marcxml" accept=".xml" required>
