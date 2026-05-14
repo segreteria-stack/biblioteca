@@ -184,57 +184,61 @@ $totalTopics = count($frequencies);
 ?>
 
 <section class="page-section page-section--topics">
-    <header class="topics-header">
-        <h1>Esplora tutti i temi</h1>
-        <p class="topics-subtitle">
-            <?= (int)$totalTopics ?> soggetti nel catalogo —
-            clicca su un tema per vedere i titoli collegati.
-        </p>
-    </header>
+    <div class="topics-layout">
 
-    <!-- Indice alfabetico A-Z (barra orizzontale) -->
-    <nav class="topics-index" aria-label="Indice alfabetico dei temi">
-        <?php foreach ($groupKeys as $key):
-            $display      = ($key === '#') ? '#' : $key;
-            $sectionLabel = ($key === '#') ? 'Altro' : $key;
-            $anchorId     = 'topics-' . $sectionLabel;
-        ?>
-            <a href="#<?= h($anchorId) ?>" class="topics-index-link"><?= h($display) ?></a>
-        <?php endforeach; ?>
-    </nav>
+        <!-- Contenuto principale: header + gruppi per lettera -->
+        <div class="topics-content">
+            <header class="topics-header">
+                <h1>Esplora tutti i temi</h1>
+                <p class="topics-subtitle">
+                    <?= (int)$totalTopics ?> soggetti nel catalogo —
+                    clicca su un tema per vedere i titoli collegati.
+                </p>
+            </header>
 
-    <!-- Gruppi per lettera -->
-    <div class="topics-body">
-        <?php foreach ($groupKeys as $key):
-            $items = $groups[$key] ?? [];
-            if ($items === []) continue;
-            $sectionLabel = ($key === '#') ? 'Altro' : $key;
-            $anchorId     = 'topics-' . $sectionLabel;
-        ?>
-        <section class="topics-group" id="<?= h($anchorId) ?>">
-            <h2 class="topics-group-title"><?= h($sectionLabel) ?></h2>
-            <ul class="tag-cloud-list">
-                <?php foreach ($items as $topic):
-                    $label = trim((string)($topic['label'] ?? ''));
-                    if ($label === '') continue;
-                    $count     = (int)($topic['use_count'] ?? 0);
-                    $isPopular = !empty($popularLabels[$label]);
-                    $href      = $baseUrl . '/index.php?page=search&subject=' . rawurlencode($label);
-                ?>
-                    <li>
-                        <a href="<?= h($href) ?>"
-                           class="subject-tag<?= $isPopular ? ' subject-tag--popular' : '' ?>"
-                           title="<?= h($label) ?> (<?= $count ?> titol<?= $count === 1 ? 'o' : 'i' ?>)">
-                            <?= h($label) ?><?php if ($count > 1): ?><span class="subject-count"> (<?= $count ?>)</span><?php endif; ?>
-                        </a>
-                    </li>
-                <?php endforeach; ?>
-            </ul>
-        </section>
-        <?php endforeach; ?>
+            <?php foreach ($groupKeys as $key):
+                $items = $groups[$key] ?? [];
+                if ($items === []) continue;
+                $sectionLabel = ($key === '#') ? 'Altro' : $key;
+                $anchorId     = 'topics-' . $sectionLabel;
+            ?>
+            <section class="topics-group" id="<?= h($anchorId) ?>">
+                <h2 class="topics-group-title"><?= h($sectionLabel) ?></h2>
+                <ul class="tag-cloud-list">
+                    <?php foreach ($items as $topic):
+                        $label = trim((string)($topic['label'] ?? ''));
+                        if ($label === '') continue;
+                        $count     = (int)($topic['use_count'] ?? 0);
+                        $isPopular = !empty($popularLabels[$label]);
+                        $href      = $baseUrl . '/index.php?page=search&subject=' . rawurlencode($label);
+                    ?>
+                        <li>
+                            <a href="<?= h($href) ?>"
+                               class="subject-tag<?= $isPopular ? ' subject-tag--popular' : '' ?>"
+                               title="<?= h($label) ?> (<?= $count ?> titol<?= $count === 1 ? 'o' : 'i' ?>)">
+                                <?= h($label) ?><?php if ($count > 1): ?><span class="subject-count"> (<?= $count ?>)</span><?php endif; ?>
+                            </a>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            </section>
+            <?php endforeach; ?>
+
+            <p class="topics-back">
+                <a href="<?= h($baseUrl) ?>/index.php" class="btn-link">← Torna alla home</a>
+            </p>
+        </div>
+
+        <!-- Indice alfabetico A-Z — barra verticale fissa a destra -->
+        <nav class="topics-index" aria-label="Indice alfabetico dei temi">
+            <?php foreach ($groupKeys as $key):
+                $display      = ($key === '#') ? '#' : $key;
+                $sectionLabel = ($key === '#') ? 'Altro' : $key;
+                $anchorId     = 'topics-' . $sectionLabel;
+            ?>
+                <a href="#<?= h($anchorId) ?>" class="topics-index-link"><?= h($display) ?></a>
+            <?php endforeach; ?>
+        </nav>
+
     </div>
-
-    <p class="topics-back">
-        <a href="<?= h($baseUrl) ?>/index.php" class="btn-link">← Torna alla home</a>
-    </p>
 </section>
