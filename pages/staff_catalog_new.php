@@ -148,6 +148,31 @@ function ncn_topics(string $raw): array
     return $topics;
 }
 
+/**
+ * Estrae soggetti dal MARC21 binario rispettando i campi ripetibili.
+ * Ogni occorrenza del campo 650 è un soggetto distinto.
+ * Restituisce array di stringhe (max $max elementi).
+ */
+function ncn_marc_subjects(array $marc, int $max = 0): array
+{
+    $subjects = [];
+    foreach ($marc['fields'] as $f) {
+        if (($f['tag'] ?? '') !== '650' || !empty($f['ctrl'])) continue;
+        $parts = [];
+        foreach ($f['subfields'] as $sf) {
+            if (in_array($sf['code'], ['a', 'x', 'y', 'z'], true)) {
+                $v = trim(preg_replace('/[\x00-\x1F\x7F]/u', ' ', $sf['val']));
+                if ($v !== '') $parts[] = $v;
+            }
+        }
+        if ($parts !== []) {
+            $subjects[] = implode(' -- ', $parts);
+            if ($max > 0 && count($subjects) >= $max) break;
+        }
+    }
+    return $subjects;
+}
+
 function ncn_add_field(PDO $pdo, int $bibid, int $tag, string $sub, string $val): void
 {
     $val = trim($val);
@@ -350,7 +375,7 @@ if ($method === 'file_upload') {
             $pub     = ncn_marc_subs($marc, '260', ['a','b','c']) ?: ncn_marc_subs($marc, '264', ['a','b','c']);
             $phys    = ncn_marc_subs($marc, '300', ['a','b','c']);
             $abstr   = ncn_marc_subs($marc, '520', ['a','b']);
-            $subj    = ncn_marc_subs($marc, '650', ['a','x','y','z']);
+            $subj    = implode('; ', ncn_marc_subjects($marc)); // un soggetto per campo 650, separati da ";"
             $fileExtracted = compact('isbn','authors','title','pub','phys','abstr','subj');
             $fileStep = 2;
         } elseif (in_array($ext, ['txt','enw'], true)) {
@@ -583,6 +608,10 @@ if ($method === 'marcxml') {
                     if ($pubEdit  !== '') $insF->execute([$bibid,260,'b',$pubEdit]);
                     if ($pubAnno  !== '') $insF->execute([$bibid,260,'c',$pubAnno]);
                     if ($phys     !== '') $insF->execute([$bibid,300,'a',$phys]);
+                    // Inserisce ogni soggetto come riga 650/a separata in biblio_field
+                    foreach ($mxSubsAll('650','a') as $subjVal) {
+                        $insF->execute([$bibid, 650, 'a', $subjVal]);
+                    }
 
                     if ($createCopy) {
                         [$copyid, $barcode] = ncn_insert_copy($pdo, $bibid);

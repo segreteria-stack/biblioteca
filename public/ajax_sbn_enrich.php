@@ -62,10 +62,31 @@ function insertField(\PDO $pdo, int $bibid, int $tag, string $subfield, $value):
 function insertFields(\PDO $pdo, int $bibid, int $tag, string $subfield, array $values): int
 {
     $count = 0;
+    // Prepara le query una sola volta fuori dal loop
+    $dup = $pdo->prepare("
+        SELECT 1 FROM biblio_field
+        WHERE bibid = ? AND tag = ? AND subfield_cd = ? AND field_data = ? LIMIT 1
+    ");
+    $ins = $pdo->prepare("
+        INSERT INTO biblio_field (bibid, tag, ind1_cd, ind2_cd, subfield_cd, field_data)
+        VALUES (?, ?, NULL, NULL, ?, ?)
+    ");
     foreach ($values as $value) {
-        if (insertField($pdo, $bibid, $tag, $subfield, $value)) {
-            $count++;
+        if (is_array($value)) {
+            $value = implode('; ', array_filter($value, fn($v) => $v !== null && $v !== ''));
+        } elseif ($value === null) {
+            continue;
+        } else {
+            $value = trim((string)$value);
         }
+        if ($value === '') continue;
+        // Controlla duplicato ESATTO (bibid + tag + subfield + field_data):
+        // fieldExists() controlla solo (bibid, tag, subfield) e blocca tutti i soggetti
+        // dopo il primo — qui controlliamo il valore completo per permettere multi-valore.
+        $dup->execute([$bibid, $tag, $subfield, $value]);
+        if ($dup->fetch()) continue;
+        $ins->execute([$bibid, $tag, $subfield, $value]);
+        $count++;
     }
     return $count;
 }
