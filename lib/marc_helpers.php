@@ -380,19 +380,19 @@ function marc_get_subjects(PDO $pdo, int $bibid, array $record = []): array
     $subjects = [];
     $seenKeys = [];
 
-    $addSubject = function (string $val) use (&$subjects, &$seenKeys): void {
-        $val = marc_normalize_subject_val($val);
-        if ($val === null) return;
-        $key = mb_strtolower($val, 'UTF-8');
-        if (isset($seenKeys[$key])) return;
-        $seenKeys[$key] = true;
-        $subjects[] = $val;
+    $addRaw = function (string $raw) use (&$subjects, &$seenKeys): void {
+        foreach (marc_split_subject_string($raw) as $val) {
+            $key = mb_strtolower($val, 'UTF-8');
+            if (isset($seenKeys[$key])) continue;
+            $seenKeys[$key] = true;
+            $subjects[] = $val;
+        }
     };
 
     // 1. topic1..5 da biblio
     foreach (['topic1', 'topic2', 'topic3', 'topic4', 'topic5'] as $tk) {
         $val = trim((string)($record[$tk] ?? ''));
-        if ($val !== '') $addSubject($val);
+        if ($val !== '') $addRaw($val);
     }
 
     // 2+3. biblio_field tag 650 e 651 $a
@@ -407,7 +407,7 @@ function marc_get_subjects(PDO $pdo, int $bibid, array $record = []): array
             $st->execute([$bibid]);
             while ($row = $st->fetch(PDO::FETCH_ASSOC)) {
                 $val = trim((string)($row['field_data'] ?? ''));
-                if ($val !== '') $addSubject($val);
+                if ($val !== '') $addRaw($val);
             }
         } catch (PDOException $e) {
             // non bloccante
@@ -433,17 +433,20 @@ function search_fetch_subjects_map(PDO $pdo, array $bibids, array $records = [])
     $bibids = array_values(array_unique(array_filter(array_map('intval', $bibids), static fn($v) => $v > 0)));
     if ($bibids === []) return $out;
 
+    $seenPerBid = [];
     foreach ($bibids as $bid) {
-        $out[$bid] = [];
-        $seen      = [];
-        $rec       = $records[$bid] ?? [];
+        $out[$bid]      = [];
+        $seenPerBid[$bid] = [];
+        $rec            = $records[$bid] ?? [];
         foreach (['topic1','topic2','topic3','topic4','topic5'] as $tk) {
-            $v = marc_normalize_subject_val((string)($rec[$tk] ?? ''));
-            if ($v === null) continue;
-            $key = mb_strtolower($v, 'UTF-8');
-            if (isset($seen[$key])) continue;
-            $seen[$key] = true;
-            $out[$bid][] = $v;
+            $raw = trim((string)($rec[$tk] ?? ''));
+            if ($raw === '') continue;
+            foreach (marc_split_subject_string($raw) as $v) {
+                $key = mb_strtolower($v, 'UTF-8');
+                if (isset($seenPerBid[$bid][$key])) continue;
+                $seenPerBid[$bid][$key] = true;
+                $out[$bid][] = $v;
+            }
         }
     }
 
@@ -458,24 +461,17 @@ function search_fetch_subjects_map(PDO $pdo, array $bibids, array $records = [])
             ORDER BY bibid, tag, fieldid
         ");
         $st->execute($bibids);
-        $seen    = [];
-        $lastBid = -1;
         while ($row = $st->fetch(PDO::FETCH_ASSOC)) {
             $bid = (int)$row['bibid'];
-            if ($bid !== $lastBid) {
-                $seen    = [];
-                $lastBid = $bid;
-                foreach ($out[$bid] ?? [] as $s) {
-                    $seen[mb_strtolower($s, 'UTF-8')] = true;
-                }
-            }
             if (!isset($out[$bid])) continue;
-            $v = marc_normalize_subject_val((string)($row['field_data'] ?? ''));
-            if ($v === null) continue;
-            $key = mb_strtolower($v, 'UTF-8');
-            if (isset($seen[$key])) continue;
-            $seen[$key] = true;
-            $out[$bid][] = $v;
+            $raw = trim((string)($row['field_data'] ?? ''));
+            if ($raw === '') continue;
+            foreach (marc_split_subject_string($raw) as $v) {
+                $key = mb_strtolower($v, 'UTF-8');
+                if (isset($seenPerBid[$bid][$key])) continue;
+                $seenPerBid[$bid][$key] = true;
+                $out[$bid][] = $v;
+            }
         }
     } catch (PDOException $e) {
         // non bloccante
