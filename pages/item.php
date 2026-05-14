@@ -281,7 +281,6 @@ function fetchOtherTitlesByAuthor(PDO $pdo, string $author, int $excludeBibid, i
 function fetchMarcFields(PDO $pdo, int $bibid): array
 {
     $fields = [
-        'soggetti'           => [],
         'dewey'              => null,
         'lingua'             => null,
         'paese'              => null,
@@ -298,12 +297,11 @@ function fetchMarcFields(PDO $pdo, int $bibid): array
 
     try {
         $st = $pdo->prepare("
-            SELECT tag, subfield_cd, field_data 
-            FROM biblio_field 
+            SELECT tag, subfield_cd, field_data
+            FROM biblio_field
             WHERE bibid = ? AND tag IN (
                 82, 240, 260, 41, 44, 90,
-                300, 490, 500, 504, 505, 520,
-                650, 651, 901
+                300, 490, 500, 504, 505, 520, 901
             )
             ORDER BY tag, subfield_cd
         ");
@@ -356,9 +354,9 @@ function fetchMarcFields(PDO $pdo, int $bibid): array
                 case 520:
                     if ($sub === 'a') $fields['abstract'] = $val;
                     break;
-                case 650: // soggetti topici
-                case 651: // FIX: soggetti geografici, prima ignorati
-                    if ($sub === 'a') $fields['soggetti'][] = $val;
+                case 650:
+                case 651:
+                    // gestiti da marc_get_subjects() — non duplicare qui
                     break;
             }
         }
@@ -739,6 +737,19 @@ $needsCoverJs   = ($isbnForJs !== '' && $gbApiKey !== '' && !CoverService::hasLo
                 </section>
             <?php endif; ?>
 
+            <?php if ($subjects !== []): ?>
+                <section class="item-subjects">
+                    <h2>Soggetti</h2>
+                    <div class="result-tags">
+                        <?php foreach ($subjects as $subject): ?>
+                            <a class="tag" href="index.php?page=search&amp;subject=<?= urlencode($subject) ?>">
+                                <?= h($subject) ?>
+                            </a>
+                        <?php endforeach; ?>
+                    </div>
+                </section>
+            <?php endif; ?>
+
             <?php if ($hasTechData): ?>
                 <section class="item-tech">
                     <h2>Dati tecnici</h2>
@@ -846,19 +857,6 @@ $needsCoverJs   = ($isbnForJs !== '' && $gbApiKey !== '' && !CoverService::hasLo
             <?php endif; ?>
         </div><!-- /.item-main -->
     </div><!-- /.item-layout -->
-
-    <?php if ($subjects !== []): ?>
-        <div class="item-subjects">
-            <h2>Soggetti</h2>
-            <div class="result-tags">
-                <?php foreach ($subjects as $subject): ?>
-                    <a class="tag" href="index.php?page=search&amp;subject=<?= urlencode($subject) ?>">
-                        <?= h($subject) ?>
-                    </a>
-                <?php endforeach; ?>
-            </div>
-        </div>
-    <?php endif; ?>
 
 </section>
 
