@@ -15,6 +15,7 @@ $Tcfg = (isset($cfg['tables']) && is_array($cfg['tables'])) ? $cfg['tables'] : [
 
 $T = $Tcfg + [
   'member'             => 'member',
+  'patron_auth'        => 'patron_auth',
   'biblio'             => 'biblio',
   'biblio_copy'        => 'biblio_copy',
   'biblio_status_hist' => 'biblio_status_hist',
@@ -235,9 +236,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'change_password') {
         // Aggiorna patron_auth.pass_hash (usato per il login)
         $stUp = $db->prepare("UPDATE {$T['patron_auth']} SET pass_hash = ? WHERE mbrid = ? LIMIT 1");
         $stUp->execute([$hash, $mbrid]);
-        // Aggiorna anche member.pass_user per consistenza legacy
+        // Aggiorna pass_user (colonna legacy MD5) per compatibilità
         $stUp2 = $db->prepare("UPDATE {$T['member']} SET pass_user = ?, last_change_dt = NOW() WHERE mbrid = ? LIMIT 1");
-        $stUp2->execute([$hash, $mbrid]);
+        $stUp2->execute([md5($pwNew), $mbrid]);
         $flashOk = 'Password aggiornata con successo.';
         $tab = 'password';
       } catch (Throwable $e) {
@@ -284,7 +285,7 @@ try {
     SELECT c.bibid, c.copyid, b.title, b.author,
            c.status_cd, c.status_begin_dt, c.due_back_dt
     FROM {$T['biblio_copy']} c
-    JOIN {$T['biblio']} b ON b.bibid = c.bibid
+    JOIN {$T['biblio']} b ON b.bibid = c.bibid AND b.opac_flg = 'Y'
     WHERE c.mbrid = ? AND c.status_cd = 'out'
     ORDER BY c.due_back_dt ASC
   ");
@@ -306,7 +307,7 @@ try {
            h.status_begin_dt, h.due_back_dt, h.renewal_count,
            b.title, b.author
     FROM {$T['biblio_status_hist']} h
-    JOIN {$T['biblio']} b ON b.bibid = h.bibid
+    JOIN {$T['biblio']} b ON b.bibid = h.bibid AND b.opac_flg = 'Y'
     LEFT JOIN {$T['biblio_status_dm']} sd ON sd.code = h.status_cd
     WHERE h.mbrid = ? AND h.status_cd = 'out'
     ORDER BY h.status_begin_dt DESC

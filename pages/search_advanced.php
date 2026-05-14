@@ -127,11 +127,12 @@ function search_fetch_already_held_map(PDO $pdo, int $mbrid, array $bibids): arr
 
 function buildPattern(string $value, string $op): array
 {
+    $esc = static fn(string $v): string => str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $v);
     switch (strtolower($op)) {
-        case 'equals': return ['pattern' => $value,             'use_like' => false];
-        case 'starts': return ['pattern' => $value . '%',       'use_like' => true];
-        case 'ends':   return ['pattern' => '%' . $value,       'use_like' => true];
-        default:       return ['pattern' => '%' . $value . '%', 'use_like' => true];
+        case 'equals': return ['pattern' => $value,                    'use_like' => false];
+        case 'starts': return ['pattern' => $esc($value) . '%',        'use_like' => true];
+        case 'ends':   return ['pattern' => '%' . $esc($value),        'use_like' => true];
+        default:       return ['pattern' => '%' . $esc($value) . '%',  'use_like' => true];
     }
 }
 
@@ -150,7 +151,8 @@ function buildTitleCondition(string $value, string $op, array &$params): ?string
         if ($tokens === []) return null;
         $parts = [];
         foreach ($tokens as $tok) {
-            $pattern  = '%' . $tok['value'] . '%';
+            $escaped  = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $tok['value']);
+            $pattern  = '%' . $escaped . '%';
             $parts[]  = '(title LIKE ? OR title_remainder LIKE ?)';
             $params[] = $pattern;
             $params[] = $pattern;
@@ -171,7 +173,8 @@ function buildAuthorCondition(string $value, string $op, array &$params): ?strin
         if ($tokens === []) return null;
         $parts = [];
         foreach ($tokens as $tok) {
-            $pattern  = '%' . $tok['value'] . '%';
+            $escaped  = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $tok['value']);
+            $pattern  = '%' . $escaped . '%';
             $parts[]  = 'author LIKE ?';
             $params[] = $pattern;
         }
@@ -190,7 +193,8 @@ function buildSubjectCondition(string $value, string $op, array &$params): ?stri
         if ($tokens === []) return null;
         $parts = [];
         foreach ($tokens as $tok) {
-            $pattern = '%' . $tok['value'] . '%';
+            $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $tok['value']);
+            $pattern = '%' . $escaped . '%';
             $parts[] = "(topic1 LIKE ? OR topic2 LIKE ? OR topic3 LIKE ? OR topic4 LIKE ? OR topic5 LIKE ?"
                      . " OR EXISTS (SELECT 1 FROM biblio_field bfs WHERE bfs.bibid = biblio.bibid"
                      . "  AND bfs.tag IN (650,651) AND bfs.subfield_cd = 'a' AND bfs.field_data LIKE ?))";
@@ -217,7 +221,8 @@ function buildAbstractCondition(string $value, string $op, array &$params): ?str
         if ($tokens === []) return null;
         $parts = [];
         foreach ($tokens as $tok) {
-            $pattern = '%' . $tok['value'] . '%';
+            $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $tok['value']);
+            $pattern = '%' . $escaped . '%';
             $parts[] = "EXISTS (SELECT 1 FROM biblio_field bfa WHERE bfa.bibid = biblio.bibid"
                      . " AND bfa.tag IN (520,500) AND bfa.subfield_cd = 'a' AND bfa.field_data LIKE ?)";
             $params[] = $pattern;

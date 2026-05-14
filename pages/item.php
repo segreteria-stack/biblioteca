@@ -195,10 +195,8 @@ function fetchCopiesDetail(PDO $pdo, int $bibid): array
     try {
         $stmt = $pdo->prepare("
             SELECT c.copyid, c.barcode_nmbr, c.status_cd, c.due_back_dt,
-                   m.first_name, m.last_name,
                    COALESCE(s.description, c.status_cd) AS status_desc
             FROM biblio_copy c
-            LEFT JOIN member m ON c.mbrid = m.mbrid
             LEFT JOIN biblio_status_dm s ON s.code = c.status_cd
             WHERE c.bibid = :bibid AND c.status_cd NOT IN ('dis', 'lst')
             ORDER BY c.copyid
@@ -258,7 +256,7 @@ function fetchOtherTitlesByAuthor(PDO $pdo, string $author, int $excludeBibid, i
             SELECT b.bibid, b.title, b.title_remainder, idx.pub_year
             FROM biblio b
             LEFT JOIN biblio_index_ext idx ON idx.bibid = b.bibid
-            WHERE b.author = :author AND b.bibid <> :bibid
+            WHERE b.author = :author AND b.bibid <> :bibid AND b.opac_flg = 'Y'
             ORDER BY idx.pub_year DESC, b.title ASC
             LIMIT ' . $limit;
         $stmt = $pdo->prepare($sql);
@@ -603,9 +601,6 @@ $needsCoverJs   = ($isbnForJs !== '' && $gbApiKey !== '' && !CoverService::hasLo
                                 <?php if (!empty($copy['due_back_dt']) && $copy['due_back_dt'] !== '0000-00-00' && !$isAvailable): ?>
                                     <div class="item-copy-due">
                                         fino al <?= h(date('d/m/Y', strtotime($copy['due_back_dt']))) ?>
-                                        <?php if (!empty($copy['last_name'])): ?>
-                                            — <?= h(($copy['first_name'] ?? '') . ' ' . $copy['last_name']) ?>
-                                        <?php endif; ?>
                                     </div>
                                 <?php endif; ?>
                             </li>

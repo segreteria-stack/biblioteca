@@ -19,6 +19,13 @@ require ROOT . '/lib/CoverService.php';
 
 header('Content-Type: application/json');
 
+if (session_status() === PHP_SESSION_NONE) session_start();
+if (empty($_SESSION['staff_user_id']) && empty($_SESSION['patron'])) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'error' => 'Non autorizzato']);
+    exit;
+}
+
 // Solo POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);

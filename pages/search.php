@@ -41,7 +41,7 @@ function search_fetch_availability_map(PDO $pdo, array $bibids): array
     static $defaultLabels = [
         'in'  => 'Disponibile',
         'ln'  => 'In prestito',
-        'out' => 'Non disponibile',
+        'out' => 'In prestito',
         'hld' => 'In attesa',
         'mnd' => 'In fase di restauro',
         'ord' => 'Riservato',
@@ -170,7 +170,8 @@ $params     = [];
 if ($q !== '') {
     $tokens = search_tokenize($q);
     foreach ($tokens as $tok) {
-        $pattern  = '%' . $tok['value'] . '%';
+        $escaped  = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $tok['value']);
+        $pattern  = '%' . $escaped . '%';
         $subParts = [];
         foreach (['b.title', 'b.title_remainder', 'b.author', 'b.topic1', 'b.topic2', 'b.topic3', 'b.topic4', 'b.topic5'] as $col) {
             $subParts[] = "$col LIKE ?";
@@ -188,7 +189,8 @@ if ($subject !== '') {
     $segments = array_values(array_filter(preg_split('/\s+--\s+/', $subject) ?: [], fn($s) => trim($s) !== ''));
     foreach ($segments as $seg) {
         $seg      = trim($seg);
-        $pattern  = '%' . $seg . '%';
+        $escaped  = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $seg);
+        $pattern  = '%' . $escaped . '%';
         $subParts = [];
         foreach (['b.topic1', 'b.topic2', 'b.topic3', 'b.topic4', 'b.topic5'] as $col) {
             $subParts[] = "$col LIKE ?";

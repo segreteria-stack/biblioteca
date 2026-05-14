@@ -464,11 +464,8 @@ if ($action === 'import_record') {
         ], JSON_UNESCAPED_UNICODE);
 
     } catch (Throwable $e) {
-        echo json_encode([
-            'ok'    => false,
-            'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString(),
-        ]);
+        error_log('SBN import_record error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
     }
     exit;
 }
@@ -712,11 +709,8 @@ if ($action === 'run_batch') {
         ], JSON_UNESCAPED_UNICODE);
 
     } catch (Throwable $e) {
-        echo json_encode([
-            'ok'    => false,
-            'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString(),
-        ]);
+        error_log('SBN run_batch error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
     }
     exit;
 }
@@ -863,11 +857,8 @@ if ($action === 'enrich_single') {
         ], JSON_UNESCAPED_UNICODE);
 
     } catch (Throwable $e) {
-        echo json_encode([
-            'ok'    => false,
-            'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString(),
-        ]);
+        error_log('SBN enrich_single error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
     }
     exit;
 }
@@ -1148,8 +1139,8 @@ if ($action === 'enrich_by_data') {
         if (!empty($data['isbn']) && insertField($pdo, $bibid, 20, 'a', $data['isbn'])) $inserted[] = 'isbn';
         if (!empty($data['autore']) && insertField($pdo, $bibid, 100, 'a', $data['autore'])) {
             $inserted[] = 'autore_marc';
-            $updAuth = $pdo->prepare("UPDATE biblio SET author = ? WHERE bibid = ?");
-            $updAuth->execute([$data['autore'], $bibid]);
+            $pdo->prepare("UPDATE biblio SET author = ? WHERE bibid = ? AND (author IS NULL OR author = '')")
+                ->execute([$data['autore'], $bibid]);
         }
         if (!empty($data['editore']) && insertField($pdo, $bibid, 260, 'b', $data['editore'])) $inserted[] = 'editore';
         if (!empty($data['anno']) && insertField($pdo, $bibid, 260, 'c', $data['anno'])) $inserted[] = 'anno';
@@ -1302,11 +1293,8 @@ if ($action === 'import_record_with_data') {
         ], JSON_UNESCAPED_UNICODE);
 
     } catch (Throwable $e) {
-        echo json_encode([
-            'ok'    => false,
-            'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString(),
-        ]);
+        error_log('SBN import_record_with_data error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
     }
     exit;
 }

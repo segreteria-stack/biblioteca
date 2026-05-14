@@ -392,27 +392,49 @@ try {
     .then(posts => {
       if (!posts || !posts.length) return;
       posts.forEach(post => {
-        const title   = post.title?.rendered || '';
-        const excerpt = post.excerpt?.rendered || '';
-        const link    = post.link || '#';
-        let img = '';
-        const media = post._embedded?.['wp:featuredmedia']?.[0];
-        if (media?.source_url) img = media.source_url;
+        const rawTitle   = post.title?.rendered || '';
+        const rawExcerpt = post.excerpt?.rendered || '';
+        const link       = post.link || '#';
+        const media      = post._embedded?.['wp:featuredmedia']?.[0];
+        const imgSrc     = media?.source_url || '';
+
+        // Decode HTML entities from WordPress without executing scripts
+        const decodeHtml = (html) => {
+          const tmp = document.createElement('div');
+          tmp.innerHTML = html;
+          return tmp.textContent || '';
+        };
 
         const item = document.createElement('a');
         item.className = 'external-review-card';
         item.href = link;
         item.target = '_blank';
-        item.rel = 'noopener';
-        item.innerHTML = `
-          <div class="external-review-image">
-            ${img ? `<img src="${img}" alt="">` : ''}
-          </div>
-          <div class="external-review-body">
-            <h3 class="external-review-title">${title}</h3>
-            <div class="external-review-excerpt">${excerpt}</div>
-          </div>
-        `;
+        item.rel = 'noopener noreferrer';
+
+        const imgDiv = document.createElement('div');
+        imgDiv.className = 'external-review-image';
+        if (imgSrc) {
+          const img = document.createElement('img');
+          img.src = imgSrc;
+          img.alt = '';
+          imgDiv.appendChild(img);
+        }
+
+        const bodyDiv  = document.createElement('div');
+        bodyDiv.className = 'external-review-body';
+
+        const titleEl  = document.createElement('h3');
+        titleEl.className = 'external-review-title';
+        titleEl.textContent = decodeHtml(rawTitle);
+
+        const excerptEl = document.createElement('div');
+        excerptEl.className = 'external-review-excerpt';
+        excerptEl.textContent = decodeHtml(rawExcerpt);
+
+        bodyDiv.appendChild(titleEl);
+        bodyDiv.appendChild(excerptEl);
+        item.appendChild(imgDiv);
+        item.appendChild(bodyDiv);
         container.appendChild(item);
       });
     })
