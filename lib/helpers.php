@@ -42,6 +42,12 @@ function csrf_verify(string $token): bool
     return $token !== '' && hash_equals($_SESSION['_csrf'] ?? '', $token);
 }
 
+/** Alias di csrf_verify() — usato nelle pagine pubbliche. */
+function csrf_check(string $token): bool
+{
+    return csrf_verify($token);
+}
+
 /**
  * Tokenizza una stringa di ricerca rispettando le virgolette doppie.
  *

@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             $holdBook = $holdTitleStmt->fetch(PDO::FETCH_ASSOC) ?: [];
                             $mailerHold = new EmailService($cfg, ROOT);
                             $mailerHold->send($patronEmail, 'Prenotazione confermata — Biblioteca della Resistenza', 'patron/hold_confirm', [
-                                'patron_name' => trim((string)($patron['first_name'] ?? '') . ' ' . (string)($patron['last_name'] ?? '')),
+                                'patron_name' => (string)($patron['name'] ?? ''),
                                 'book_title'  => (string)($holdBook['title'] ?? ''),
                                 'book_author' => (string)($holdBook['author'] ?? ''),
                                 'bibid'       => $bibidPost,

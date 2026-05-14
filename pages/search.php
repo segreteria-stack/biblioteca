@@ -281,7 +281,7 @@ if ($hasSearch) {
     }
 } elseif (!$hasSearch) {
     try {
-        $shelf = $pdo->query('SELECT bibid, title, title_remainder, author FROM biblio ORDER BY RAND() LIMIT 6')->fetchAll(PDO::FETCH_ASSOC);
+        $shelf = $pdo->query("SELECT bibid, title, title_remainder, author FROM biblio WHERE opac_flg = 'Y' ORDER BY RAND() LIMIT 6")->fetchAll(PDO::FETCH_ASSOC);
     } catch (\PDOException $e) {}
 }
 

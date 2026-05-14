@@ -193,15 +193,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'change_password') {
     } elseif ($pwNew !== $pwConfirm) {
       $errPw = 'La nuova password e la conferma non corrispondono.';
     } else {
-      // verifica password attuale
+      // Verifica password attuale contro patron_auth.pass_hash (bcrypt)
+      // con fallback su member.pass_user (MD5 legacy) per account non migrati
       try {
-        $stPw = $db->prepare("SELECT pass_user FROM {$T['member']} WHERE mbrid = ? LIMIT 1");
+        $stPw = $db->prepare("
+          SELECT pa.pass_hash, m.pass_user
+          FROM {$T['patron_auth']} pa
+          JOIN {$T['member']} m ON m.mbrid = pa.mbrid
+          WHERE pa.mbrid = ? LIMIT 1
+        ");
         $stPw->execute([$mbrid]);
         $row = $stPw->fetch(PDO::FETCH_ASSOC);
-        $stored = (string)($row['pass_user'] ?? '');
-        $ok = password_verify($pwCurrent, $stored)
-           || md5($pwCurrent) === $stored
-           || $pwCurrent === $stored;
+        $passHash = (string)($row['pass_hash'] ?? '');
+        $passUser = (string)($row['pass_user'] ?? '');
+        if ($passHash !== '') {
+          $ok = password_verify($pwCurrent, $passHash);
+        } else {
+          $ok = $pwCurrent !== '' && md5($pwCurrent) === $passUser;
+        }
         if (!$ok) {
           $errPw = 'La password attuale non è corretta.';
         }
@@ -212,7 +221,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'change_password') {
 
     if (!$errPw) {
       $valResult = PatronAuth::validatePassword($pwNew);
-      if ($valResult !== true) {
+      if ($valResult !== null) {
         $errPw = $valResult;
       }
     }
@@ -223,8 +232,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'change_password') {
     } else {
       try {
         $hash = password_hash($pwNew, PASSWORD_DEFAULT);
-        $stUp = $db->prepare("UPDATE {$T['member']} SET pass_user = ?, last_change_dt = NOW() WHERE mbrid = ? LIMIT 1");
+        // Aggiorna patron_auth.pass_hash (usato per il login)
+        $stUp = $db->prepare("UPDATE {$T['patron_auth']} SET pass_hash = ? WHERE mbrid = ? LIMIT 1");
         $stUp->execute([$hash, $mbrid]);
+        // Aggiorna anche member.pass_user per consistenza legacy
+        $stUp2 = $db->prepare("UPDATE {$T['member']} SET pass_user = ?, last_change_dt = NOW() WHERE mbrid = ? LIMIT 1");
+        $stUp2->execute([$hash, $mbrid]);
         $flashOk = 'Password aggiornata con successo.';
         $tab = 'password';
       } catch (Throwable $e) {
