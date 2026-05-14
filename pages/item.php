@@ -327,7 +327,7 @@ function fetchMarcFields(PDO $pdo, int $bibid): array
                     break;
                 case 90:
                 case 901:
-                    if ($sub === 'a' && str_starts_with($val, 'IT\\ICCU')) {
+                    if ($sub === 'a') {
                         $fields['bid_sbn'] = $val;
                     }
                     break;
