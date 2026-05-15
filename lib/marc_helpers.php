@@ -348,7 +348,10 @@ function marc_normalize_subject_val(string $val): ?string
 {
     $val = trim($val);
     if ($val === '') return null;
-    if (preg_match('/^[\d\s\-–—.,:;]+$/', $val)) return null;
+    if (preg_match('/^[\d\s\-–—.,:;]+$/', $val)) {
+        // Conserva intervalli di anni (es. "1939-1945", "1895-1996")
+        if (!preg_match('/^\d{4}-\d{4}$/', trim($val))) return null;
+    }
     if ($val === mb_strtoupper($val, 'UTF-8')) {
         $val = mb_convert_case($val, MB_CASE_TITLE, 'UTF-8');
     }
