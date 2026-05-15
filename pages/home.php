@@ -699,7 +699,7 @@ try {
   const input    = document.getElementById('agente-input');
   const messages = document.getElementById('agente-messages');
   const sendBtn  = document.getElementById('agente-send');
-  const ajaxUrl  = '<?= h($baseUrl) ?>/public/ajax_agente.php';
+  const ajaxUrl  = '<?= h($baseUrl) ?>/ajax_agente.php';
 
   // Storico messaggi (ruolo + testo) per contesto multi-turno
   const history = [];
