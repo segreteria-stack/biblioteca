@@ -354,6 +354,117 @@ try {
 .home-highlight--external-reviews {
   margin-bottom: 3rem;
 }
+
+/* ── Bibliotecario virtuale ── */
+.agente-section {
+  max-width: 760px;
+  margin: 0 auto 3.5rem;
+  padding: 0 1rem;
+}
+.agente-header {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: 1.25rem;
+}
+.agente-avatar {
+  width: 42px; height: 42px;
+  background: #c0001a;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+.agente-title { font-size: 1.2rem; font-weight: 700; color: #1a1a1a; margin: 0; }
+.agente-subtitle { font-size: .82rem; color: #64748b; margin: 0; }
+.agente-messages {
+  background: #f8f9fa;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1.25rem;
+  min-height: 120px;
+  max-height: 380px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+  margin-bottom: .75rem;
+}
+.agente-bubble {
+  padding: .65rem .9rem;
+  border-radius: 12px;
+  font-size: .92rem;
+  line-height: 1.55;
+  max-width: 88%;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.agente-bubble--bot {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  align-self: flex-start;
+  color: #1a1a1a;
+}
+.agente-bubble--user {
+  background: #c0001a;
+  color: #fff;
+  align-self: flex-end;
+}
+.agente-bubble--error {
+  background: #fff3f3;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  align-self: flex-start;
+  font-size: .85rem;
+}
+.agente-typing {
+  display: flex; gap: 4px; align-items: center;
+  padding: .65rem .9rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  align-self: flex-start;
+}
+.agente-typing span {
+  width: 7px; height: 7px;
+  background: #94a3b8;
+  border-radius: 50%;
+  animation: agente-bounce .9s infinite;
+}
+.agente-typing span:nth-child(2) { animation-delay: .15s; }
+.agente-typing span:nth-child(3) { animation-delay: .3s; }
+@keyframes agente-bounce {
+  0%,80%,100% { transform: translateY(0); }
+  40%         { transform: translateY(-6px); }
+}
+.agente-form {
+  display: flex; gap: .5rem;
+}
+.agente-input {
+  flex: 1;
+  padding: .65rem .9rem;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  font-size: .92rem;
+  outline: none;
+  transition: border-color .15s;
+}
+.agente-input:focus { border-color: #c0001a; }
+.agente-send {
+  padding: .65rem 1.1rem;
+  background: #c0001a;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: .92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s;
+  white-space: nowrap;
+}
+.agente-send:hover { background: #a0001a; }
+.agente-send:disabled { background: #ccc; cursor: default; }
+.agente-bubble a { color: #c0001a; text-decoration: underline; }
 </style>
 
 <!-- RECENSIONI DA ANPIUDINE.ORG -->
@@ -548,3 +659,129 @@ try {
 })();
 </script>
 <?php endif; ?>
+
+<!-- ══════════════════════════════════════════════════════
+     BIBLIOTECARIO VIRTUALE
+     ══════════════════════════════════════════════════════ -->
+<section class="agente-section" aria-label="Bibliotecario virtuale">
+  <div class="agente-header">
+    <div class="agente-avatar" aria-hidden="true">📚</div>
+    <div>
+      <p class="agente-title">Biblio — Bibliotecario virtuale</p>
+      <p class="agente-subtitle">Chiedi un libro, un argomento o come iscriverti</p>
+    </div>
+  </div>
+
+  <div class="agente-messages" id="agente-messages" role="log" aria-live="polite">
+    <div class="agente-bubble agente-bubble--bot">
+      Ciao! Sono Biblio, il bibliotecario virtuale della Biblioteca della Resistenza ANPI di Udine. 📚<br>
+      Posso aiutarti a trovare libri nel catalogo, rispondere a domande sulla Resistenza e sulla storia del Friuli, o spiegarti come iscriverti e prendere libri in prestito.<br><br>
+      Come posso aiutarti?
+    </div>
+  </div>
+
+  <form class="agente-form" id="agente-form" autocomplete="off">
+    <input
+      class="agente-input"
+      id="agente-input"
+      type="text"
+      placeholder="Es. Hai libri sulla Resistenza in Friuli?"
+      maxlength="500"
+      aria-label="Messaggio per il bibliotecario"
+    >
+    <button class="agente-send" id="agente-send" type="submit">Invia</button>
+  </form>
+</section>
+
+<script>
+(function () {
+  const form     = document.getElementById('agente-form');
+  const input    = document.getElementById('agente-input');
+  const messages = document.getElementById('agente-messages');
+  const sendBtn  = document.getElementById('agente-send');
+  const ajaxUrl  = '<?= h($baseUrl) ?>/public/ajax_agente.php';
+
+  // Storico messaggi (ruolo + testo) per contesto multi-turno
+  const history = [];
+
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;');
+  }
+
+  // Converte **grassetto** e link in HTML
+  function renderMarkdown(text) {
+    return escHtml(text)
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
+               '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  }
+
+  function addBubble(text, type) {
+    const div = document.createElement('div');
+    div.className = 'agente-bubble agente-bubble--' + type;
+    if (type === 'error') {
+      div.textContent = text;
+    } else {
+      div.innerHTML = renderMarkdown(text);
+    }
+    messages.appendChild(div);
+    messages.scrollTop = messages.scrollHeight;
+    return div;
+  }
+
+  function showTyping() {
+    const div = document.createElement('div');
+    div.className = 'agente-typing';
+    div.id = 'agente-typing';
+    div.innerHTML = '<span></span><span></span><span></span>';
+    messages.appendChild(div);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function removeTyping() {
+    const t = document.getElementById('agente-typing');
+    if (t) t.remove();
+  }
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const msg = input.value.trim();
+    if (!msg) return;
+
+    input.value   = '';
+    sendBtn.disabled = true;
+    addBubble(msg, 'user');
+    history.push({ role: 'user', text: msg });
+    showTyping();
+
+    try {
+      const res = await fetch(ajaxUrl, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ message: msg, history: history.slice(0, -1) }),
+      });
+      const data = await res.json();
+      removeTyping();
+
+      if (data.ok) {
+        addBubble(data.reply, 'bot');
+        history.push({ role: 'model', text: data.reply });
+        // Mantieni lo storico leggero
+        if (history.length > 20) history.splice(0, 2);
+      } else {
+        addBubble(data.error || 'Errore sconosciuto.', 'error');
+        history.pop();
+      }
+    } catch (err) {
+      removeTyping();
+      addBubble('Errore di connessione. Riprova tra poco.', 'error');
+      history.pop();
+    } finally {
+      sendBtn.disabled = false;
+      input.focus();
+    }
+  });
+})();
+</script>
