@@ -364,7 +364,9 @@ function marc_normalize_subject_val(string $val): ?string
  */
 function marc_split_subject_string(string $raw): array
 {
-    $parts  = preg_split('/\s+--\s+|\s*;\s*/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    // Separa su " -- " (MARC21), " - " (SBN/formato italiano) e ";"
+    // Il trattino senza spazi (es. "1939-1945") NON viene spezzato
+    $parts  = preg_split('/\s+--\s+|\s+-\s+|\s*;\s*/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [];
     $result = [];
     foreach ($parts as $part) {
         $normalized = marc_normalize_subject_val($part);

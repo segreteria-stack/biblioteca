@@ -353,8 +353,8 @@ final class SbnClient
             $item = trim((string)$item);
             if ($item === '') continue;
             // Se contiene separatori comuni ("; " o " -- "), splitta in soggetti distinti
-            if (str_contains($item, '; ') || str_contains($item, ' -- ')) {
-                $parts = preg_split('/\s*;\s*|\s+--\s+/', $item);
+            if (str_contains($item, '; ') || str_contains($item, ' -- ') || str_contains($item, ' - ')) {
+                $parts = preg_split('/\s*;\s*|\s+--\s+|\s+-\s+/', $item);
                 foreach ($parts as $p) {
                     $p = trim($p);
                     if ($p !== '') $result[] = $p;
