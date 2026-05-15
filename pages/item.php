@@ -256,7 +256,7 @@ function fetchOtherTitlesByAuthor(PDO $pdo, string $author, int $excludeBibid, i
             SELECT b.bibid, b.title, b.title_remainder, idx.pub_year
             FROM biblio b
             LEFT JOIN biblio_index_ext idx ON idx.bibid = b.bibid
-            WHERE b.author = :author AND b.bibid <> :bibid AND b.opac_flg = 'Y'
+            WHERE b.author = :author AND b.bibid <> :bibid AND b.opac_flg = \'Y\'
             ORDER BY idx.pub_year DESC, b.title ASC
             LIMIT ' . $limit;
         $stmt = $pdo->prepare($sql);
