@@ -64,6 +64,15 @@ $cfg['google_books'] = [
 $cfg['cron_http_token'] = 'a9F3d2K7LxQ8R4WmC5YpH6ZsT0VbN1eU';
 
 /* =========================
+   reCAPTCHA v3 (Google)
+   ========================= */
+$cfg['recaptcha'] = [
+    'sitekey'   => '6LerOOssAAAAAHfMn33PURRi2e7LoiTqQerKKz45',
+    'secret'    => '6LerOOssAAAAABIdQKEF-yELyJhrEr6d9axycgiQ',
+    'threshold' => 0.5,
+];
+
+/* =========================
    SBN / ICCU API
    ========================= */
 

@@ -48,6 +48,22 @@ function csrf_check(string $token): bool
     return csrf_verify($token);
 }
 
+function recaptcha_verify(string $token, string $secret, float $threshold = 0.5): bool
+{
+    if ($token === '') return false;
+    $resp = @file_get_contents('https://www.google.com/recaptcha/api/siteverify', false,
+        stream_context_create(['http' => [
+            'method'  => 'POST',
+            'header'  => 'Content-Type: application/x-www-form-urlencoded',
+            'content' => http_build_query(['secret' => $secret, 'response' => $token]),
+            'timeout' => 5,
+        ]])
+    );
+    if ($resp === false) return false;
+    $data = json_decode($resp, true);
+    return ($data['success'] ?? false) === true && ($data['score'] ?? 0.0) >= $threshold;
+}
+
 /**
  * Tokenizza una stringa di ricerca rispettando le virgolette doppie.
  *

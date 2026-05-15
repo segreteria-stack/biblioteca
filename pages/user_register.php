@@ -28,6 +28,8 @@ if ($err === '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($hasCsrf && !csrf_check($_POST['csrf'] ?? '')) {
         $err = 'Token CSRF non valido.';
+    } elseif (!recaptcha_verify($_POST['g-recaptcha-response'] ?? '', $cfg['recaptcha']['secret'], $cfg['recaptcha']['threshold'])) {
+        $err = 'Verifica antibot non superata. Riprova.';
     } else {
         $firstName      = trim((string)($_POST['first_name'] ?? ''));
         $lastName       = trim((string)($_POST['last_name'] ?? ''));
@@ -161,10 +163,12 @@ if ($err === '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     <p style="color:#b00020;margin:0 0 10px 0"><?= h($err) ?></p>
   <?php endif; ?>
 
-  <form method="post" autocomplete="on" style="margin:0">
+  <script src="https://www.google.com/recaptcha/api.js?render=<?= h($cfg['recaptcha']['sitekey']) ?>"></script>
+  <form id="regForm" method="post" autocomplete="on" style="margin:0">
     <?php if ($hasCsrf): ?>
       <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
     <?php endif; ?>
+    <input type="hidden" name="g-recaptcha-response" id="g-recaptcha-response">
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <label style="display:block">
@@ -275,6 +279,20 @@ if ($err === '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 </section>
 
 <script>
+(function () {
+  var form = document.getElementById('regForm');
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      grecaptcha.ready(function () {
+        grecaptcha.execute('<?= h($cfg['recaptcha']['sitekey']) ?>', {action: 'register'}).then(function (token) {
+          document.getElementById('g-recaptcha-response').value = token;
+          form.submit();
+        });
+      });
+    });
+  }
+})();
 (function () {
   var t  = document.getElementById('pwToggle');
   var p1 = document.getElementById('pw1');

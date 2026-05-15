@@ -31,6 +31,8 @@ $hasCsrf = function_exists('csrf_check') && function_exists('csrf_token');
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if ($hasCsrf && !csrf_check($_POST['csrf'] ?? '')) {
     $err = 'Token CSRF non valido';
+  } elseif (!recaptcha_verify($_POST['g-recaptcha-response'] ?? '', $cfg['recaptcha']['secret'], $cfg['recaptcha']['threshold'])) {
+    $err = 'Verifica antibot non superata. Riprova.';
   } else {
     $ok = PatronAuth::login($db, $T, trim($_POST['login'] ?? ''), trim($_POST['password'] ?? ''));
     if ($ok) {
@@ -56,10 +58,12 @@ $registerUrl = $base . '/index.php?page=user_register';
     <p style="color:#b00020;margin:0 0 10px 0"><?= h($err) ?></p>
   <?php endif; ?>
 
-  <form method="post" autocomplete="on" style="margin:0">
+  <script src="https://www.google.com/recaptcha/api.js?render=<?= h($cfg['recaptcha']['sitekey']) ?>"></script>
+  <form id="loginForm" method="post" autocomplete="on" style="margin:0">
     <?php if ($hasCsrf): ?>
       <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
     <?php endif; ?>
+    <input type="hidden" name="g-recaptcha-response" id="g-recaptcha-response-login">
 
     <label style="display:block;margin:0 0 12px 0">
       <span style="display:block;margin:0 0 6px 0">Barcode o Email</span>
@@ -89,6 +93,22 @@ $registerUrl = $base . '/index.php?page=user_register';
       <a href="<?= h($base) ?>/index.php?page=user_forgot">Hai perso la password?</a>
     </p>
   </form>
+
+<script>
+(function () {
+  var form = document.getElementById('loginForm');
+  if (!form) return;
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    grecaptcha.ready(function () {
+      grecaptcha.execute('<?= h($cfg['recaptcha']['sitekey']) ?>', {action: 'login'}).then(function (token) {
+        document.getElementById('g-recaptcha-response-login').value = token;
+        form.submit();
+      });
+    });
+  });
+})();
+</script>
 
   <div style="margin-top:12px;padding-top:12px;border-top:1px solid #eee">
     <p style="margin:0 0 6px 0;color:#64748b;font-size:14px">
