@@ -65,6 +65,25 @@ function recaptcha_verify(string $token, string $secret, float $threshold = 0.5)
 }
 
 /**
+ * Inserisce una copia in biblio_copy e assegna il barcode nel formato standard
+ * str_pad(bibid,5,'0') . str_pad(copyid,2,'0') (7 chars).
+ * Se $barcode è fornito e valido (non vuoto, <= 20 chars) viene usato al posto dell'auto-generato.
+ * Restituisce [copyid, barcode].
+ */
+function biblio_copy_insert(\PDO $pdo, int $bibid, string $status = 'in', string $barcode = ''): array
+{
+    $pdo->prepare('INSERT INTO biblio_copy (bibid,create_dt,barcode_nmbr,status_cd,status_begin_dt,renewal_count) VALUES (?,NOW(),\'\',?,NOW(),0)')
+        ->execute([$bibid, $status]);
+    $copyid      = (int)$pdo->lastInsertId();
+    $autoBarcode = str_pad((string)$bibid, 5, '0', STR_PAD_LEFT)
+                 . str_pad((string)$copyid, 2, '0', STR_PAD_LEFT);
+    $finalBarcode = ($barcode !== '' && strlen($barcode) <= 20) ? $barcode : $autoBarcode;
+    $pdo->prepare('UPDATE biblio_copy SET barcode_nmbr=? WHERE bibid=? AND copyid=?')
+        ->execute([$finalBarcode, $bibid, $copyid]);
+    return [$copyid, $finalBarcode];
+}
+
+/**
  * Tokenizza una stringa di ricerca rispettando le virgolette doppie.
  *
  * Esempi:

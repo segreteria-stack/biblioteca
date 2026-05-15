@@ -183,27 +183,10 @@ function upsertField(\PDO $pdo, int $bibid, int $tag, string $subfield, ?string 
     return true;
 }
 
-/**
- * Genera il prossimo (copyid, barcode) per un bibid.
- * Barcode = bibid a 5 cifre + copyid a 2 cifre.
- */
-/**
- * Inserisce una nuova copia lasciando che MySQL assegni copyid via AUTO_INCREMENT
- * per-gruppo (MyISAM composite PK bibid+copyid) — atomico, senza race condition.
- * Restituisce [copyid, barcode].
- */
+/** Alias locale — delega a biblio_copy_insert() in lib/helpers.php */
 function insertCopy(\PDO $pdo, int $bibid, string $status = 'in', string $barcode = ''): array
 {
-    // INSERT senza copyid: MySQL lo assegna atomicamente (per-group AUTO_INCREMENT)
-    $pdo->prepare('INSERT INTO biblio_copy (bibid,create_dt,barcode_nmbr,status_cd,status_begin_dt,renewal_count) VALUES (?,NOW(),\'\',?,NOW(),0)')
-        ->execute([$bibid, $status]);
-    $copyid     = (int)$pdo->lastInsertId();
-    $autoBarcode = str_pad((string)$bibid, 5, '0', STR_PAD_LEFT)
-                 . str_pad((string)$copyid, 2, '0', STR_PAD_LEFT);
-    $finalBarcode = ($barcode !== '' && strlen($barcode) <= 20) ? $barcode : $autoBarcode;
-    $pdo->prepare('UPDATE biblio_copy SET barcode_nmbr=? WHERE bibid=? AND copyid=?')
-        ->execute([$finalBarcode, $bibid, $copyid]);
-    return [$copyid, $finalBarcode];
+    return biblio_copy_insert($pdo, $bibid, $status, $barcode);
 }
 
 /**

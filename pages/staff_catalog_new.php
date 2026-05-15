@@ -208,23 +208,10 @@ function ncn_extract_isbn_marc(array $marc): string
 // SHARED HELPERS — inserimento copia con barcode univoco
 // ============================================================
 
-/**
- * Inserisce una nuova copia in biblio_copy lasciando che MySQL assegni
- * copyid via AUTO_INCREMENT per-gruppo (MyISAM composite PK bibid+copyid).
- * Questo evita la race condition del vecchio MAX(copyid)+1.
- * Restituisce [copyid, barcode].
- */
+/** Alias locale — delega a biblio_copy_insert() in lib/helpers.php */
 function ncn_insert_copy(PDO $pdo, int $bibid, string $status = 'in'): array
 {
-    // INSERT senza copyid: MySQL assegna il valore atomicamente
-    $pdo->prepare('INSERT INTO biblio_copy (bibid,create_dt,barcode_nmbr,status_cd,status_begin_dt,renewal_count) VALUES (?,NOW(),\'\',?,NOW(),0)')
-        ->execute([$bibid, $status]);
-    $copyid  = (int)$pdo->lastInsertId();
-    $barcode = str_pad((string)$bibid, 5, '0', STR_PAD_LEFT)
-             . str_pad((string)$copyid, 2, '0', STR_PAD_LEFT);
-    $pdo->prepare('UPDATE biblio_copy SET barcode_nmbr=? WHERE bibid=? AND copyid=?')
-        ->execute([$barcode, $bibid, $copyid]);
-    return [$copyid, $barcode];
+    return biblio_copy_insert($pdo, $bibid, $status);
 }
 
 function ncn_sync_index_ext(PDO $pdo, int $bibid, string $isbn, string $pubYear, string $publisher, string $pubPlace): void
@@ -1367,9 +1354,11 @@ function sbnRenderForm(r) {
         {label:'Riferimenti bibliogr.',key:'bibliografia',type:'text'},
         {label:'Descrizione fisica',key:'dimensioni',type:'text'},
         {label:'Illustrazioni',key:'illustrazioni',type:'text'},
-        {label:'Soggetti',key:'soggetti',type:'textarea',
-         value:Array.isArray(r.soggetti)?r.soggetti.join('; '):(r.soggetti||''),
-         placeholder:'Separati da ; es. Resistenza; Friuli'},
+        {label:'Soggetto 1',key:'topic1',type:'text',value:Array.isArray(r.soggetti)?r.soggetti[0]||'':''},
+        {label:'Soggetto 2',key:'topic2',type:'text',value:Array.isArray(r.soggetti)?r.soggetti[1]||'':''},
+        {label:'Soggetto 3',key:'topic3',type:'text',value:Array.isArray(r.soggetti)?r.soggetti[2]||'':''},
+        {label:'Soggetto 4',key:'topic4',type:'text',value:Array.isArray(r.soggetti)?r.soggetti[3]||'':''},
+        {label:'Soggetto 5',key:'topic5',type:'text',value:Array.isArray(r.soggetti)?r.soggetti[4]||'':''},
         {section:'Tipo materiale e collezione'},
         {label:'Tipo materiale',key:'material_cd',type:'select',
          options:[{value:'1',label:'Nastri audio'},{value:'2',label:'Libro'},{value:'3',label:'Cd audio'},
@@ -1416,8 +1405,9 @@ function sbnCollect() {
                   'collezione','note','abstract','indice','dimensioni','illustrazioni','isbn'];
     const d = {};
     for (const k of keys) { const el = document.getElementById('sbn-field-'+k); if (el) d[k] = el.value.trim(); }
-    const sogEl = document.getElementById('sbn-field-soggetti');
-    if (sogEl) d.soggetti = sogEl.value.split(';').map(s=>s.trim()).filter(Boolean);
+    d.soggetti = ['topic1','topic2','topic3','topic4','topic5']
+        .map(id => { const el = document.getElementById('sbn-field-'+id); return el ? el.value.trim() : ''; })
+        .filter(Boolean);
     for (const k of ['material_cd','collection_cd','call_nmbr1','call_nmbr2','call_nmbr3','barcode','status_cd']) {
         const el = document.getElementById('sbn-field-'+k); if (el) d[k] = el.value.trim();
     }

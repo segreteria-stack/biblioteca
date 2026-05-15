@@ -319,7 +319,9 @@ final class SbnClient
             $subfields = $field[$tag]['subfields'] ?? [];
             foreach ($subfields as $sub) {
                 if (isset($sub[$code]) && $sub[$code] !== '') {
-                    return trim($sub[$code]);
+                    // Rimuove i delimitatori di sottocampo UNIMARC (\x1F e altri control char)
+                    $clean = preg_replace('/[\x00-\x1f\x7f]/u', '', (string)$sub[$code]);
+                    return trim($clean) ?: null;
                 }
             }
         }
