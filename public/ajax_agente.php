@@ -144,6 +144,11 @@ $payload = [
     ],
 ];
 
+if (!function_exists('curl_init')) {
+    echo json_encode(['ok' => false, 'error' => '[debug] curl non disponibile su questo server.']);
+    exit;
+}
+
 $ch = curl_init($url);
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
@@ -151,13 +156,21 @@ curl_setopt_array($ch, [
     CURLOPT_POSTFIELDS     => json_encode($payload),
     CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
     CURLOPT_TIMEOUT        => 15,
+    CURLOPT_SSL_VERIFYPEER => true,
 ]);
 $resp     = curl_exec($ch);
+$curlErr  = curl_error($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
-if ($resp === false || $httpCode !== 200) {
-    echo json_encode(['ok' => false, 'error' => 'Servizio temporaneamente non disponibile. Riprova tra poco.']);
+if ($resp === false) {
+    echo json_encode(['ok' => false, 'error' => '[debug] curl error: ' . $curlErr]);
+    exit;
+}
+if ($httpCode !== 200) {
+    $errBody = json_decode($resp, true);
+    $errMsg  = $errBody['error']['message'] ?? $resp;
+    echo json_encode(['ok' => false, 'error' => '[debug] HTTP ' . $httpCode . ': ' . mb_substr($errMsg, 0, 200)]);
     exit;
 }
 
