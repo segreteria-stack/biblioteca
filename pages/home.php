@@ -661,8 +661,9 @@ try {
 <?php endif; ?>
 
 <!-- ══════════════════════════════════════════════════════
-     BIBLIOTECARIO VIRTUALE
+     BIBLIOTECARIO VIRTUALE (disabilitato — $cfg['gemini']['enabled'] = true per riattivare)
      ══════════════════════════════════════════════════════ -->
+<?php if (!empty($cfg['gemini']['enabled'])): ?>
 <section class="agente-section" aria-label="Bibliotecario virtuale">
   <div class="agente-header">
     <div class="agente-avatar" aria-hidden="true">📚</div>
@@ -785,3 +786,4 @@ try {
   });
 })();
 </script>
+<?php endif; ?>

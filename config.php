@@ -76,6 +76,7 @@ $cfg['recaptcha'] = [
    Gemini AI (Google AI Studio)
    ========================= */
 $cfg['gemini'] = [
+    'enabled' => false,
     'api_key' => 'AIzaSyBDGqD9PMXwZqs6Anzsw6uzRHgz2UtPOAE',
     'model'   => 'gemini-2.0-flash',
 ];

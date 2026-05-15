@@ -15,6 +15,12 @@ require ROOT . '/config.php';
 require ROOT . '/lib/DB.php';
 require ROOT . '/lib/helpers.php';
 
+if (!($cfg['gemini']['enabled'] ?? false)) {
+    http_response_code(503);
+    echo json_encode(['ok' => false, 'error' => 'Servizio non disponibile.']);
+    exit;
+}
+
 // ── Sicurezza base ──────────────────────────────────────────────────────────
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
