@@ -394,7 +394,7 @@ foreach ($rows as $index => $row) {
     $clauses[] = ['sql' => $cond, 'bool' => $bool];
 }
 
-if ($materialCd !== '') {
+if ($materialCd !== '' && (int)$materialCd > 0) {
     $clauses[] = ['sql' => 'material_cd = ?', 'bool' => 'AND'];
     $params[]  = (int)$materialCd;
 }

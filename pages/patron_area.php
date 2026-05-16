@@ -509,7 +509,7 @@ if ($initials === '') $initials = '?';
               <td class="apd-col-date"><?= $fmtDate($r['due_back_dt'] ?? null) ?></td>
               <td class="apd-nowrap">
                 <?php if ($dl !== null && $dl <= 3 && $dl >= 0): ?>
-                  <span class="staff-status-badge" style="background:#fff7ed;color:#b45309;border:1px solid #fed7aa"><?= h($badgeTxt) ?></span>
+                  <span class="staff-status-badge" style="<?= h($badgeStyle) ?>"><?= h($badgeTxt) ?></span>
                 <?php elseif ($dl !== null && $dl < 0): ?>
                   <span class="staff-status-badge staff-status-badge--off"><?= h($badgeTxt) ?></span>
                 <?php elseif ($dl !== null): ?>
