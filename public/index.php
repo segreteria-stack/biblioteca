@@ -63,6 +63,8 @@ if (in_array($page, $standalonePages, true)) {
     exit;
 }
 
+ob_start();
 require $templateDir . '/header.php';
 require $pagesDir . '/' . $page . '.php';
 require $templateDir . '/footer.php';
+ob_end_flush();

@@ -108,6 +108,8 @@ function is_valid_ymd(string $s): bool
 
 function csv_out(string $filename, array $header, array $rows): void
 {
+    // Svuota l'output buffer (header.php potrebbe averlo già avviato)
+    while (ob_get_level() > 0) ob_end_clean();
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     header('Pragma: no-cache');
