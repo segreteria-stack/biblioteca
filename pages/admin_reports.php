@@ -592,10 +592,17 @@ if ($dateFrom !== '' || $dateTo !== '') {
 <?php endif; ?>
 
 @media print {
-  header, nav, footer, .site-header, .site-footer, .topbar, .utility-bar { display:none !important; }
+  /* Reset layout — senza questi si ottengono pagine bianche */
+  html, body { overflow: visible !important; height: auto !important; }
+  body { margin: 0 !important; padding: 0 !important; }
+  .site-header { display: none !important; position: static !important; height: 0 !important; }
+  .staff-dashboard { display: block !important; }
+  .container, .site-main { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+
+  header, nav, footer, .site-footer, .topbar, .utility-bar { display:none !important; }
   .reports-no-print { display:none !important; }
-  .page-section { padding:0 !important; margin:0 !important; border:none !important; }
-  .staff-card { border:none !important; box-shadow:none !important; }
+  .page-section { padding:0 !important; margin:0 !important; border:none !important; box-shadow:none !important; }
+  .staff-card { border:none !important; box-shadow:none !important; padding: 0 !important; }
 
   /* font ridotto globale in stampa */
   body, .reports-table th, .reports-table td { font-size: 8pt !important; }
