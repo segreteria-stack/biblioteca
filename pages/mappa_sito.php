@@ -68,14 +68,14 @@ $u = static fn(string $page): string => h($baseUrl) . '/index.php' . ($page !== 
                     <li>
                         <span class="sitemap-nolink">Esplora il catalogo (sfoglia)</span>
                         <ul>
-                            <li>Sfoglia per autore</li>
-                            <li>Sfoglia per titolo (elenco alfabetico)</li>
+                            <li><a href="<?= $u('browse') . '&amp;type=autori' ?>">Sfoglia per autore</a></li>
+                            <li><a href="<?= $u('browse') . '&amp;type=titoli' ?>">Sfoglia per titolo (elenco alfabetico)</a></li>
                             <li>
                                 <a href="<?= $u('topics') ?>">Sfoglia per soggetto / tema</a>
                                 <span class="sitemap-note">Nuvolette di soggetti principali (Resistenza, Antifascismo, Storia locale, Memoria del Novecento, ecc.) visualizzate in home e nelle pagine di ricerca.</span>
                             </li>
-                            <li>Novità in biblioteca (ultimi titoli inseriti in catalogo)</li>
-                            <li>Percorsi tematici e suggerimenti di lettura</li>
+                            <li><a href="<?= $u('novita') ?>">Novità in biblioteca</a> — ultimi titoli inseriti in catalogo</li>
+                            <li><a href="<?= $u('percorsi') ?>">Percorsi tematici e suggerimenti di lettura</a></li>
                         </ul>
                     </li>
 

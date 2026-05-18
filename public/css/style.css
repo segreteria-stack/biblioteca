@@ -4639,3 +4639,261 @@ input[type="submit"] {
   font-style: italic;
   font-weight: 400;
 }
+
+/* =========================================================
+   SFOGLIA CATALOGO (browse.php)
+   ========================================================= */
+
+.page-browse { max-width: 1000px; }
+
+.browse-header { margin-bottom: 1.25rem; }
+.browse-header h1 { font-size: 1.55rem; font-weight: 700; margin: 0 0 .4rem; }
+.browse-intro { font-size: .94rem; color: var(--color-text-muted); margin: 0 0 1rem; }
+
+/* Tab autori / titoli */
+.browse-tabs {
+  display: inline-flex;
+  gap: .4rem;
+  background: rgba(0,0,0,.04);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 999px;
+  padding: 4px;
+  margin-bottom: 1rem;
+}
+.browse-tab {
+  display: inline-block;
+  padding: .35rem 1.1rem;
+  border-radius: 999px;
+  font-size: .88rem;
+  font-weight: 500;
+  text-decoration: none;
+  color: var(--color-text-muted);
+  transition: background .15s, color .15s;
+}
+.browse-tab:hover { color: var(--color-text-main); background: rgba(0,0,0,.04); }
+.browse-tab--active {
+  background: #fff;
+  color: var(--color-text-main);
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0,0,0,.10);
+}
+
+/* Navigazione alfabetica */
+.browse-letters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .3rem;
+  margin-bottom: 1rem;
+}
+.browse-letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 .3rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 5px;
+  font-size: .83rem;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--color-text-main);
+  background: #fff;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.browse-letter:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.browse-letter--active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.browse-count {
+  font-size: .88rem;
+  color: var(--color-text-muted);
+  margin: 0 0 .9rem;
+}
+.browse-empty {
+  color: var(--color-text-muted);
+  font-style: italic;
+  margin: 1rem 0;
+}
+
+/* Griglia autori */
+.browse-authors-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: .6rem;
+  margin-bottom: 1.5rem;
+}
+.browse-author-card {
+  display: flex;
+  flex-direction: column;
+  gap: .2rem;
+  padding: .6rem .8rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 7px;
+  background: #fff;
+  text-decoration: none;
+  transition: border-color .12s, box-shadow .12s;
+}
+.browse-author-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 2px 8px rgba(0,0,0,.07);
+}
+.browse-author-name {
+  font-size: .88rem;
+  font-weight: 600;
+  color: var(--color-text-main);
+  line-height: 1.3;
+  word-break: break-word;
+}
+.browse-author-count {
+  font-size: .78rem;
+  color: var(--color-text-muted);
+}
+
+/* Lista titoli */
+.browse-titles-list {
+  list-style: none;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.browse-title-item {
+  display: flex;
+  align-items: baseline;
+  gap: .75rem;
+  padding: .55rem .9rem;
+  border-bottom: 1px solid rgba(0,0,0,.06);
+  background: #fff;
+}
+.browse-title-item:last-child { border-bottom: none; }
+.browse-title-item:nth-child(even) { background: rgba(0,0,0,.013); }
+.browse-title-link {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .35rem;
+  text-decoration: none;
+  min-width: 0;
+}
+.browse-title-link:hover .browse-title-text { color: var(--color-primary); text-decoration: underline; }
+.browse-title-text { font-size: .90rem; font-weight: 600; color: var(--color-text-main); }
+.browse-title-sub { font-weight: 400; color: #555; font-size: .88rem; }
+.browse-title-author {
+  font-size: .82rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.browse-title-author::before { content: "— "; }
+.browse-title-year {
+  font-size: .80rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.browse-pagination { margin-top: 1.25rem; }
+
+/* =========================================================
+   NOVITÀ IN BIBLIOTECA (novita.php)
+   ========================================================= */
+
+.page-novita { max-width: 1100px; }
+
+.novita-header { margin-bottom: 1.25rem; }
+.novita-header h1 { font-size: 1.55rem; font-weight: 700; margin: 0 0 .4rem; }
+.novita-intro { font-size: .94rem; color: var(--color-text-muted); margin: 0 0 .3rem; }
+.novita-count { font-size: .86rem; color: var(--color-text-muted); margin: .3rem 0 0; }
+
+.novita-added {
+  font-size: .78rem;
+  color: var(--color-text-muted);
+  margin: .4rem 0 0;
+  font-style: italic;
+}
+
+.novita-pagination { margin-top: 1.5rem; }
+
+/* =========================================================
+   PERCORSI TEMATICI (percorsi.php)
+   ========================================================= */
+
+.page-percorsi { max-width: 960px; }
+
+.percorsi-header { margin-bottom: 1.75rem; }
+.percorsi-header h1 { font-size: 1.55rem; font-weight: 700; margin: 0 0 .5rem; }
+.percorsi-intro {
+  font-size: .95rem;
+  line-height: 1.6;
+  color: #444;
+  margin: .4rem 0 0;
+}
+.percorsi-intro a { color: var(--color-primary); }
+
+.percorsi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.1rem;
+  margin-bottom: 2rem;
+}
+
+.percorso-card {
+  display: flex;
+  gap: 1rem;
+  padding: 1.1rem 1.15rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
+  background: #fff;
+  transition: box-shadow .15s, border-color .15s;
+}
+.percorso-card:hover {
+  border-color: #ccc;
+  box-shadow: 0 4px 14px rgba(0,0,0,.07);
+}
+
+.percorso-icon {
+  font-size: 1.75rem;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: .1rem;
+}
+
+.percorso-body { flex: 1; min-width: 0; }
+.percorso-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 .45rem;
+  color: var(--color-text-main);
+}
+.percorso-desc {
+  font-size: .875rem;
+  line-height: 1.55;
+  color: #555;
+  margin: 0 0 .7rem;
+}
+.percorso-link {
+  display: inline-block;
+  font-size: .83rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(225,30,40,.25);
+  transition: border-color .12s;
+}
+.percorso-link:hover { border-color: var(--color-primary); }
+
+.percorsi-footer {
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border-subtle);
+  font-size: .88rem;
+  color: #555;
+}
+.percorsi-footer a { color: var(--color-primary); }
