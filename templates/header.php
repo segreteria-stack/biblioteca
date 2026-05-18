@@ -46,7 +46,9 @@ $titleHtml = (string)($title ?? 'OPAC – Biblioteca della Resistenza');
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <link rel="icon" type="image/png" href="<?= h($base) ?>/assets/favicon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?= h($base) ?>/assets/favicon-32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="<?= h($base) ?>/assets/favicon-180.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="<?= h($base) ?>/assets/favicon-192.png">
     <title><?= h($titleHtml) ?></title>
 
     <meta name="description"
